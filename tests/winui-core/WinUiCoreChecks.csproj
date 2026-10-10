@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../winui-editor/Models.cs" Link="Models.cs" />
+    <Compile Include="../../winui-editor/ScheduleFiles.cs" Link="ScheduleFiles.cs" />
+    <Compile Include="../../winui-editor/TimelineLayout.cs" Link="TimelineLayout.cs" />
+    <Compile Include="../../winui-app/RuntimeState.cs" Link="RuntimeState.cs" />
+  </ItemGroup>
+</Project>

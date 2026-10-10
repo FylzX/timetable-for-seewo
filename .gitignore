@@ -1,0 +1,65 @@
+# Portable releases, old binaries and generated packages.
+release/
+dist/
+build/
+publish/
+artifacts/
+
+# .NET / WinUI build output and local dependency caches.
+bin/
+obj/
+.dev-packages/
+.dotnet-local/
+*.pdb
+*.nupkg
+*.snupkg
+
+# Python environments and generated caches.
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Test output and coverage reports.
+test-output/
+TestResults/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# Runtime settings, logs, temporary files and local backups.
+user-data/
+*.log
+*.log.*
+*.tmp
+*.bak
+
+# Machine-specific IDE state; shared project files remain tracked.
+.vs/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Local environment files and private certificate containers.
+.env
+.env.*
+!.env.example
+!.env.sample
+*.pfx
+*.p12
+
+# Operating-system metadata.
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Keep source assets (*.ico), PyInstaller recipes (*.spec), public NuGet.Config,
+# and the initial timetable.json / exceptions.json / template.json in Git.
+# Editable release data is excluded by release/ above.

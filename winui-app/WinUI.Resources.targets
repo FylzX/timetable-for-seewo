@@ -1,0 +1,15 @@
+<Project>
+  <PropertyGroup>
+    <!-- Unpackaged WinUI resolves ms-appx XAML through this application PRI. -->
+    <ProjectPriFileName>resources.pri</ProjectPriFileName>
+  </PropertyGroup>
+  <Target Name="IncludeApplicationPriInPublish" AfterTargets="ComputeFilesToPublish">
+    <Error Condition="!Exists('$(ProjectPriFullPath)')" Text="Application XAML resource index is missing: $(ProjectPriFullPath)" />
+    <ItemGroup>
+      <ResolvedFileToPublish Include="$(ProjectPriFullPath)">
+        <RelativePath>resources.pri</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
+</Project>

@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+    <RootNamespace>Timetable.Desktop</RootNamespace>
+    <AssemblyName>DesktopTimetable</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets/calendar.ico</ApplicationIcon>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <UseWinUI>true</UseWinUI>
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <SelfContained>true</SelfContained>
+    <WindowsAppSDKDeploymentManagerInitialize>false</WindowsAppSDKDeploymentManagerInitialize>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_BREAK_ON_UNHANDLED_EXCEPTION</DefineConstants>
+    <DisableXbfLineInfo>false</DisableXbfLineInfo>
+    <SatelliteResourceLanguages>zh-CN;en-US</SatelliteResourceLanguages>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <DebugType>None</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260921001" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.4654" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="PortableLauncher.cs" />
+    <EmbeddedResource Include="Assets/calendar.ico" LogicalName="Timetable.CalendarIcon" />
+    <Compile Include="../winui-editor/Models.cs" Link="Core/Models.cs" />
+    <Compile Include="../winui-editor/ScheduleFiles.cs" Link="Core/ScheduleFiles.cs" />
+    <Compile Include="../winui-editor/Bridge.cs" Link="Editor/Bridge.cs" />
+    <Compile Include="../winui-editor/NativeWindow.cs" Link="Editor/NativeWindow.cs" />
+    <Compile Include="../winui-editor/TimelineLayout.cs" Link="Editor/TimelineLayout.cs" />
+    <Compile Include="../winui-editor/TimelinePanel.cs" Link="Editor/TimelinePanel.cs" />
+    <Compile Include="../winui-editor/BoardPresentation.cs" Link="Editor/BoardPresentation.cs" />
+    <Compile Include="../winui-editor/InteractionChecks.cs" Link="Editor/InteractionChecks.cs" />
+    <Compile Include="../winui-editor/MainWindow.xaml.cs" Link="Editor/MainWindow.xaml.cs" />
+    <Page Include="../winui-editor/MainWindow.xaml" Link="Editor/MainWindow.xaml" />
+  </ItemGroup>
+  <Import Project="WinUI.Resources.targets" />
+</Project>
