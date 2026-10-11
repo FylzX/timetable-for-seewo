@@ -1,0 +1,2 @@
+﻿JSON 中已装载示例课表以供参考，可自行清空/修改
+Example timetables have been included in the JSON file for reference and can be cleared or modified as needed.
