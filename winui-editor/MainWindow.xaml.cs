@@ -13,7 +13,7 @@ namespace Timetable.Editor;
 public sealed partial class MainWindow : Window
 {
     private static readonly string[] Weekdays = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"];
-    private static readonly string[] Courses = ["语文", "数学", "英语", "体育", "物理", "化学", "等级组合1", "化学(7班)", "化学(8班)"];
+    private static readonly string[] Courses = ["语文", "数学", "英语", "体育", "物理", "化学", "等级组合1", "等级组合2", "等级组合3"];
     private readonly ScheduleFiles files;
     private readonly Bridge bridge;
     private EditorData data = new();
