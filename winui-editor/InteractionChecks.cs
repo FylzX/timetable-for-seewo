@@ -10,6 +10,37 @@ namespace Timetable.Editor;
 
 public sealed partial class MainWindow
 {
+    internal async Task CheckTimeEntryAsync()
+    {
+        var entry = new TimeEntry("测试时间", new TimeSpan(8, 0, 0));
+        var dialog = new ContentDialog { Title = "时间输入检查", Content = entry, CloseButtonText = "关闭" };
+        var opened = new TaskCompletionSource<bool>();
+        dialog.Opened += (_, _) => opened.TrySetResult(true);
+        var pending = Dialog(dialog);
+        try
+        {
+            await opened.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            var input = Descendants(entry).OfType<TextBox>().Single();
+            var picker = Descendants(entry).OfType<TimePicker>().Single();
+            input.Text = "8:30";
+            await Task.Delay(100);
+            if (!entry.TryGetTime(out var time) || time != new TimeSpan(8, 30, 0) || picker.Time != time)
+                throw new InvalidOperationException("Typing a time did not update the picker.");
+            picker.Time = new TimeSpan(9, 45, 0);
+            await Task.Delay(100);
+            if (input.Text != "09:45" || !entry.TryGetTime(out time) || time != picker.Time)
+                throw new InvalidOperationException("Selecting a time did not update the input.");
+            foreach (var invalid in new[] { "08:", "25:10", "" })
+            {
+                input.Text = invalid;
+                await Task.Delay(100);
+                if (input.Text != invalid || entry.TryGetTime(out _))
+                    throw new InvalidOperationException("Invalid typed time was replaced with a previous valid value.");
+            }
+        }
+        finally { dialog.Hide(); await pending; }
+    }
+
     // Runs only with the explicit diagnostic argument. The fixture lives in
     // memory; original data and the saved baseline are restored before closing.
     internal async Task CheckScrollDeletionAsync()

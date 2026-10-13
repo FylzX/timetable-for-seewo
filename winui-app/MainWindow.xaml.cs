@@ -101,6 +101,8 @@ public sealed partial class MainWindow : Window
         if (Environment.GetCommandLineArgs().Contains("--windowed")) await CheckResizeCursorsAsync();
         EditClicked(this, new RoutedEventArgs());
         await Task.Delay(700);
+        await editor!.CheckTimeEntryAsync();
+        StartupLog.Write("Typed and selected times stayed synchronized; invalid input remained invalid");
         await editor!.CheckScrollDeletionAsync();
         StartupLog.Write("Repeated deletion preserved main and exception scroll positions");
         if (!await editor.RequestCloseAsync()) throw new InvalidOperationException("Diagnostic editor did not close.");

@@ -122,7 +122,7 @@ public sealed partial class MainWindow : Window
         await Dialog(new ContentDialog { Title = title, Content = Text(message), PrimaryButtonText = action,
             CloseButtonText = "取消", DefaultButton = ContentDialogButton.Close }) == ContentDialogResult.Primary;
 
-    private async Task<Lesson?> EditTime(Lesson? row, List<Lesson> rows)
+    private async Task<Lesson?> EditTime(Lesson? row, List<Lesson> rows, bool includeCourse = false)
     {
         var start = row == null ? new TimeSpan(8, 0, 0) : TimeSpan.ParseExact(row.Start, "hh\\:mm", CultureInfo.InvariantCulture);
         var end = row == null ? new TimeSpan(8, 40, 0) : TimeSpan.ParseExact(row.End, "hh\\:mm", CultureInfo.InvariantCulture);
@@ -132,23 +132,54 @@ public sealed partial class MainWindow : Window
             if (last.TotalMinutes + 50 < 1440) { start = last.Add(TimeSpan.FromMinutes(10)); end = start.Add(TimeSpan.FromMinutes(40)); }
         }
         var body = new StackPanel { Spacing = 16 };
-        body.Children.Add(Text("这节课程可以使用独立时间，无需与模板相同。", 13));
-        var from = new TimePicker { Header = "开始时间", ClockIdentifier = "24HourClock", Time = start, MinuteIncrement = 1 };
-        var until = new TimePicker { Header = "结束时间", ClockIdentifier = "24HourClock", Time = end, MinuteIncrement = 1 };
+        ComboBox? course = null;
+        TextBox? custom = null;
+        if (includeCourse)
+        {
+            course = new ComboBox { Header = "课程", HorizontalAlignment = HorizontalAlignment.Stretch };
+            foreach (var name in Courses) course.Items.Add(name);
+            course.Items.Add("自定义课程…");
+            custom = new TextBox { Header = "课程名称", PlaceholderText = "输入课程名称", Text = row?.Course ?? "", MaxLength = 80 };
+            var selected = Array.IndexOf(Courses, row?.Course ?? "");
+            course.SelectedIndex = selected >= 0 ? selected : Courses.Length;
+            custom.Visibility = course.SelectedIndex == Courses.Length ? Visibility.Visible : Visibility.Collapsed;
+            course.SelectionChanged += (_, _) =>
+                custom.Visibility = course.SelectedIndex == Courses.Length ? Visibility.Visible : Visibility.Collapsed;
+            body.Children.Add(course); body.Children.Add(custom);
+        }
+        var from = new TimeEntry("开始时间", start);
+        var until = new TimeEntry("结束时间", end);
         body.Children.Add(from); body.Children.Add(until);
         var error = new InfoBar { Severity = InfoBarSeverity.Error, IsClosable = false };
         body.Children.Add(error);
-        var dialog = new ContentDialog { Title = row == null ? "添加时间段" : "调整课程时间", Content = body,
+        var dialog = new ContentDialog { Title = includeCourse ? (row == null ? "添加课程" : "编辑课程")
+            : (row == null ? "添加时间段" : "调整时间段"), Content = body,
             PrimaryButtonText = "确定", CloseButtonText = "取消", DefaultButton = ContentDialogButton.Primary };
+        Lesson? result = null;
         dialog.PrimaryButtonClick += (_, args) =>
         {
-            var conflict = rows.FirstOrDefault(existing => existing != row && from.Time < TimeSpan.Parse(existing.End)
-                && TimeSpan.Parse(existing.Start) < until.Time);
-            var problem = from.Time >= until.Time ? "结束时间必须晚于开始时间。" : conflict != null ? "与 " + conflict.TimeLabel + " 重叠。" : null;
-            if (problem != null) { args.Cancel = true; error.Message = problem; error.IsOpen = true; }
+            void Reject(string message) { args.Cancel = true; error.Message = message; error.IsOpen = true; }
+            if (!from.TryGetTime(out var fromTime)) { Reject("开始时间无效，请输入 00:00～23:59，例如 08:30。"); return; }
+            if (!until.TryGetTime(out var untilTime)) { Reject("结束时间无效，请输入 00:00～23:59，例如 09:10。"); return; }
+            if (fromTime >= untilTime) { Reject("结束时间必须晚于开始时间。"); return; }
+            var name = includeCourse ? (course!.SelectedIndex == Courses.Length ? custom!.Text.Trim()
+                : course.SelectedItem as string ?? "") : row?.Course ?? "";
+            if (includeCourse && string.IsNullOrWhiteSpace(name)) { Reject("请选择课程或输入自定义课程名称。"); return; }
+            result = new Lesson { Start = fromTime.ToString("hh\\:mm"), End = untilTime.ToString("hh\\:mm"), Course = name };
         };
-        return await Dialog(dialog) == ContentDialogResult.Primary
-            ? new Lesson { Start = from.Time.ToString("hh\\:mm"), End = until.Time.ToString("hh\\:mm"), Course = row?.Course ?? "" } : null;
+        while (await Dialog(dialog) == ContentDialogResult.Primary && result != null)
+        {
+            var conflicts = rows.Where(existing => existing != row && ScheduleFiles.Overlaps(existing, result)).ToArray();
+            if (conflicts.Length == 0 || await Confirm("时间重叠，仍要继续？",
+                "当前时间与以下时间段重叠：\n" + string.Join("\n", conflicts.Select(existing => existing.TimeLabel
+                    + (string.IsNullOrWhiteSpace(existing.Course) ? "" : " · " + existing.Course)))
+                + "\n\n重叠课程可能相互遮挡，不方便点击、编辑或删除。确认后仍可保存。", "保留重叠"))
+                return result;
+            // The warning opens after the editor closes: WinUI allows only one
+            // ContentDialog at a time. Going back preserves all entered fields.
+            result = null;
+        }
+        return null;
     }
 
     private async Task ApplyTemplate(bool exceptions, string[] keys)

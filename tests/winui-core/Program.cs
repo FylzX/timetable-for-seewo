@@ -17,6 +17,10 @@ void Reject(Action action, string message)
 }
 try
 {
+    foreach (var (text, expected) in new[] { ("00:00", 0), ("23:59", 1439), ("8:30", 510), (" 08:30 ", 510) })
+        Check(TimeText.TryParse(text, out var time) && time.TotalMinutes == expected, "Typed time rejected or parsed incorrectly: " + text);
+    foreach (var text in new[] { "", "08:", "24:00", "08:60", "-1:30", "08:30:00", "8.30", "12:00 PM" })
+        Check(!TimeText.TryParse(text, out _), "Invalid or incomplete typed time accepted: " + text);
     var weekly = new Dictionary<string, List<Lesson>>
     {
         ["1"] = [new() { Start = "08:00", End = "08:40", Course = "语文" }],
@@ -44,7 +48,20 @@ try
     Check(!File.ReadAllText(Path.Combine(root, "template.json")).Contains("course"), "Template format must remain time-only");
     Reject(() => ScheduleFiles.ValidateRows([new() { Start = "25:00", End = "26:00", Course = "语文" }], "test"), "Invalid hours accepted");
     Reject(() => ScheduleFiles.ValidateRows([new() { Start = "09:00", End = "08:00", Course = "语文" }], "test"), "Reverse range accepted");
-    Reject(() => ScheduleFiles.ValidateRows([new() { Start = "08:00", End = "09:00", Course = "语文" }, new() { Start = "08:40", End = "09:40", Course = "数学" }], "test"), "Overlap accepted");
+    var overlapping = new List<Lesson> { new() { Start = "08:00", End = "09:00", Course = "语文" }, new() { Start = "08:40", End = "09:40", Course = "数学" } };
+    ScheduleFiles.ValidateRows(overlapping, "test");
+    Check(ScheduleFiles.Overlaps(overlapping[0], overlapping[1]), "Partial overlap must trigger a warning");
+    Check(ScheduleFiles.Overlaps(overlapping[0], overlapping[0].Copy()), "Identical ranges must trigger a warning");
+    Check(ScheduleFiles.Overlaps(overlapping[0], new() { Start = "08:10", End = "08:20" }), "Contained ranges must trigger a warning");
+    Check(!ScheduleFiles.Overlaps(overlapping[0], new() { Start = "09:00", End = "09:40" }), "Adjacent ranges must not trigger a warning");
+    var overlapRoot = Path.Combine(root, "overlap"); Directory.CreateDirectory(overlapRoot);
+    var overlapStore = new ScheduleFiles(overlapRoot);
+    overlapStore.Save(new EditorData { Weekly = new() { ["1"] = overlapping },
+        Exceptions = new() { ["2026-10-13"] = overlapping.Select(row => row.Copy()).ToList() },
+        Template = overlapping.Select(row => row.Copy(true)).ToList() });
+    var overlapReloaded = overlapStore.Read();
+    Check(overlapReloaded.Weekly["1"].Count == 2 && overlapReloaded.Exceptions["2026-10-13"].Count == 2
+        && overlapReloaded.Template.Count == 2, "Overlapping main, exception and template times must survive save and reload");
     data.Weekly["1"][0].Course = "";
     var prior = File.ReadAllBytes(Path.Combine(root, "timetable.json"));
     Reject(() => store.Save(data), "Empty course accepted");

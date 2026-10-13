@@ -62,7 +62,6 @@ public sealed class ScheduleFiles(string directory)
     public static void ValidateRows(IEnumerable<Lesson> rows, string name, bool template = false)
     {
         if (rows is null) throw new InvalidDataException($"{name}：课程列表为空值");
-        var previous = TimeOnly.MinValue;
         var index = 0;
         foreach (var row in rows)
         {
@@ -70,13 +69,16 @@ public sealed class ScheduleFiles(string directory)
             if (row == null || !TimeOnly.TryParseExact(row.Start, "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var start)
                 || !TimeOnly.TryParseExact(row.End, "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var end))
                 throw new InvalidDataException($"{name} 第 {index} 节：时间须为 HH:mm");
-            if (start >= end || start < previous)
-                throw new InvalidDataException($"{name} 第 {index} 节：开始须早于结束，课程时间不能重叠");
+            if (start >= end)
+                throw new InvalidDataException($"{name} 第 {index} 节：开始须早于结束");
             if (!template && string.IsNullOrWhiteSpace(row.Course))
                 throw new InvalidDataException($"{name} 第 {index} 节：请选择课程、输入自定义名称，或删除卡片");
-            previous = end;
         }
     }
+
+    public static bool Overlaps(Lesson first, Lesson second) =>
+        TimeOnly.ParseExact(first.Start, "HH:mm", CultureInfo.InvariantCulture) < TimeOnly.ParseExact(second.End, "HH:mm", CultureInfo.InvariantCulture)
+        && TimeOnly.ParseExact(second.Start, "HH:mm", CultureInfo.InvariantCulture) < TimeOnly.ParseExact(first.End, "HH:mm", CultureInfo.InvariantCulture);
 
     public void Save(EditorData data)
     {

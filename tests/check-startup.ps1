@@ -1,4 +1,4 @@
-param([string]$ReleaseDirectory = '', [switch]$Interactions)
+param([string]$ReleaseDirectory = '', [switch]$Interactions, [switch]$EditorOnly)
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $releaseRoot = if ($ReleaseDirectory) { [IO.Path]::GetFullPath($ReleaseDirectory) } else { Join-Path $projectRoot 'release' }
@@ -15,7 +15,7 @@ try {
         Copy-Item -LiteralPath $source -Destination (Join-Path $data $name)
         $before[$name] = (Get-FileHash -LiteralPath $source).Hash
     }
-    $mode = if ($Interactions) { '--interaction-test --windowed' } else { '--smoke-test' }
+    $mode = if ($EditorOnly) { '--interaction-test' } elseif ($Interactions) { '--interaction-test --windowed' } else { '--smoke-test' }
     $process = Start-Process -FilePath $executable -ArgumentList ($mode + ' --data-dir "' + $data + '"') -WindowStyle Hidden -PassThru
     if (-not $process.WaitForExit(30000)) {
         # Only stop the process tree started by this check.
@@ -32,7 +32,8 @@ try {
             throw ('Startup check changed schedule data: ' + $name)
         }
     }
-    if ($Interactions) { Write-Host 'Resize cursors and repeated deletion scroll preservation checks passed. Schedule files unchanged.' }
+    if ($EditorOnly) { Write-Host 'Time input synchronization and repeated deletion scroll preservation checks passed. Schedule files unchanged.' }
+    elseif ($Interactions) { Write-Host 'Resize cursors, time input synchronization and repeated deletion scroll preservation checks passed. Schedule files unchanged.' }
     else { Write-Host 'Published launcher, main window, both editor tabs and test clock started successfully. Schedule files unchanged.' }
 }
 finally {

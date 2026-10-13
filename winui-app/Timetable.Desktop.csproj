@@ -33,6 +33,8 @@
     <Compile Remove="PortableLauncher.cs" />
     <EmbeddedResource Include="Assets/calendar.ico" LogicalName="Timetable.CalendarIcon" />
     <Compile Include="../winui-editor/Models.cs" Link="Core/Models.cs" />
+    <Compile Include="../winui-editor/TimeText.cs" Link="Core/TimeText.cs" />
+    <Compile Include="../winui-editor/TimeEntry.cs" Link="Editor/TimeEntry.cs" />
     <Compile Include="../winui-editor/ScheduleFiles.cs" Link="Core/ScheduleFiles.cs" />
     <Compile Include="../winui-editor/Bridge.cs" Link="Editor/Bridge.cs" />
     <Compile Include="../winui-editor/NativeWindow.cs" Link="Editor/NativeWindow.cs" />

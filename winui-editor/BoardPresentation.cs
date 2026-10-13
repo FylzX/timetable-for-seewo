@@ -87,7 +87,8 @@ public sealed partial class MainWindow
         var times = new StackPanel { Spacing = 2 };
         foreach (var row in data.Template)
         {
-            var line = new Grid { Height = 38, ColumnSpacing = 4, Padding = new Thickness(6, 0, 0, 0) };
+            var line = new Grid { Height = 38, ColumnSpacing = 4, Padding = new Thickness(6, 0, 0, 0),
+                Background = new SolidColorBrush(Colors.Transparent) };
             line.ColumnDefinitions.Add(new() { Width = new GridLength(1, GridUnitType.Star) });
             line.ColumnDefinitions.Add(new() { Width = GridLength.Auto });
             var time = FlatButton(Text(row.TimeLabel, 13), async (_, _) =>
@@ -254,7 +255,7 @@ public sealed partial class MainWindow
         var axisHeading = new StackPanel { Spacing = 1, VerticalAlignment = VerticalAlignment.Center };
         var axisTitle = Text("时间", 11); axisTitle.Foreground = Brush("TextFillColorTertiaryBrush"); axisHeading.Children.Add(axisTitle);
         var axisHint = Text("点击卡片修改", 9); axisHint.Foreground = Brush("TextFillColorTertiaryBrush"); axisHeading.Children.Add(axisHint);
-        ToolTipService.SetToolTip(axisHeading, "课程卡片可直接点击修改；点击时间可调整时间段。\n所有列共享时间轴，长空档已压缩。");
+        ToolTipService.SetToolTip(axisHeading, "点击课程卡片可同时修改课程名称和时间。\n所有列共享时间轴，长空档已压缩。");
         headings.Children.Add(axisHeading);
         for (var index = 0; index < keys.Length; index++)
         {
@@ -266,16 +267,20 @@ public sealed partial class MainWindow
                     + (key == selectedExceptionKey ? " · 已选中" : "")
                 : $"{rows.Count} 节课程", 11);
             caption.Foreground = Brush("TextFillColorSecondaryBrush"); title.Children.Add(caption);
-            var heading = new Grid { ColumnSpacing = 4, Margin = new Thickness(0, 0, 8, 0) };
+            var heading = new Grid { ColumnSpacing = 4, Margin = new Thickness(0, 0, 8, 0),
+                Background = new SolidColorBrush(Colors.Transparent) };
             heading.ColumnDefinitions.Add(new() { Width = new GridLength(1, GridUnitType.Star) });
-            heading.ColumnDefinitions.Add(new() { Width = GridLength.Auto }); heading.Children.Add(title);
+            heading.ColumnDefinitions.Add(new() { Width = GridLength.Auto });
             if (exceptions)
             {
-                heading.PointerPressed += (_, _) =>
+                var selectDate = FlatButton(title, (_, _) =>
                 {
+                    if (selectedExceptionKey == key) return;
                     selectedExceptionKey = key;
                     RenderExceptions();
-                };
+                });
+                AutomationProperties.SetName(selectDate, "选择日期 " + key);
+                heading.Children.Add(selectDate);
                 var removeDate = DeleteButton("删除整个日期", async (_, _) =>
                 {
                     if (await Confirm("删除例外日期？", $"删除 {key} 的全部例外课程？保存后该日期恢复使用主课表。", "删除日期"))
@@ -283,10 +288,11 @@ public sealed partial class MainWindow
                 });
                 Grid.SetColumn(removeDate, 1); heading.Children.Add(removeDate); RevealOnInteraction(heading, removeDate);
             }
+            else heading.Children.Add(title);
             Grid.SetColumn(heading, index + 1); headings.Children.Add(heading);
             var add = FlatButton(Text("＋ 添加课程", 12), async (_, _) =>
             {
-                var row = await EditTime(null, rows);
+                var row = await EditTime(null, rows, includeCourse: true);
                 if (row != null) { rows.Add(row); Sort(rows); Rebuild(); Changed(); }
             });
             var targetName = exceptions ? key : WeekdayName(key);
@@ -359,7 +365,7 @@ public sealed partial class MainWindow
         button.Click += clicked; return button;
     }
 
-    private static void RevealOnInteraction(FrameworkElement container, params FrameworkElement[] controls)
+    private void RevealOnInteraction(FrameworkElement container, params FrameworkElement[] controls)
     {
         bool hovered = false;
         bool FocusInside()
@@ -375,7 +381,39 @@ public sealed partial class MainWindow
         }
         foreach (var control in controls) { control.Opacity = 0; control.IsHitTestVisible = false; }
         container.PointerEntered += (_, _) => { hovered = true; Update(); };
-        container.PointerExited += (_, _) => { hovered = false; Update(); };
+        // Entering a child is not leaving the hover region. In particular, do not
+        // hide/disable the delete button when it becomes the pointer's hit target.
+        void UpdatePointer(object sender, PointerRoutedEventArgs args)
+        {
+            var position = args.GetCurrentPoint(container).Position;
+            var inside = position.X >= 0 && position.Y >= 0
+                && position.X < container.ActualWidth && position.Y < container.ActualHeight;
+            if (hovered == inside) return;
+            hovered = inside;
+            Update();
+        }
+        container.PointerExited += UpdatePointer;
+        // Track movement across the whole window, including the next template
+        // row. Exit events alone may carry the last position inside the old row.
+        var moved = new PointerEventHandler(UpdatePointer);
+        PointerEventHandler exited = (_, args) =>
+        {
+            var point = args.GetCurrentPoint(Root).Position;
+            if (point.X >= 0 && point.Y >= 0 && point.X < Root.ActualWidth && point.Y < Root.ActualHeight) return;
+            hovered = false; Update();
+        };
+        container.Loaded += (_, _) =>
+        {
+            Root.AddHandler(UIElement.PointerMovedEvent, moved, true);
+            Root.PointerExited += exited;
+        };
+        container.Unloaded += (_, _) =>
+        {
+            Root.RemoveHandler(UIElement.PointerMovedEvent, moved);
+            Root.PointerExited -= exited;
+        };
+        foreach (var control in controls)
+            control.PointerEntered += (_, _) => { hovered = true; Update(); };
         container.GotFocus += (_, _) => Update();
         container.LostFocus += (_, _) => container.DispatcherQueue.TryEnqueue(Update);
     }
@@ -391,28 +429,30 @@ public sealed partial class MainWindow
         var timeLabel = Text(row.TimeLabel, 10); timeLabel.TextWrapping = TextWrapping.NoWrap;
         timeLabel.LineHeight = 14; timeLabel.LineStackingStrategy = LineStackingStrategy.BlockLineHeight;
         timeLabel.TextTrimming = TextTrimming.CharacterEllipsis; timeLabel.Foreground = Brush("TextFillColorSecondaryBrush");
-        var time = FlatButton(timeLabel, async (_, _) =>
+        async Task EditCourse()
         {
-            var edited = await EditTime(row, rows);
-            if (edited != null) { row.Start = edited.Start; row.End = edited.End; Sort(rows); rebuild(); Changed(); }
-        });
-        ToolTipService.SetToolTip(time, "修改时间 · " + row.TimeLabel); body.Children.Add(time);
+            var edited = await EditTime(row, rows, includeCourse: true);
+            if (edited == null) return;
+            row.Start = edited.Start; row.End = edited.End; row.Course = edited.Course;
+            Sort(rows); rebuild(); Changed();
+        }
+        var time = FlatButton(timeLabel, async (_, _) => await EditCourse());
+        ToolTipService.SetToolTip(time, "编辑课程和时间 · " + row.TimeLabel); body.Children.Add(time);
         var courseLabel = Text("", 16, true); courseLabel.TextWrapping = TextWrapping.NoWrap;
         courseLabel.LineHeight = 22; courseLabel.LineStackingStrategy = LineStackingStrategy.BlockLineHeight;
         courseLabel.TextTrimming = TextTrimming.CharacterEllipsis;
-        var course = FlatButton(courseLabel); Grid.SetRow(course, 1); body.Children.Add(course);
+        var course = FlatButton(courseLabel, async (_, _) => await EditCourse()); Grid.SetRow(course, 1); body.Children.Add(course);
         var remove = DeleteButton("删除课程", (_, _) => { rows.Remove(row); rebuild(); Changed(); });
         remove.Width = 28; remove.VerticalAlignment = VerticalAlignment.Stretch;
         Grid.SetColumn(remove, 1); Grid.SetRowSpan(remove, 2); body.Children.Add(remove);
-        // Course selection is available by clicking the label or anywhere on the card;
-        // there is no permanent arrow competing with the delete action.
+        // Both labels and the surrounding card open the same lesson dialog.
         card.Child = body; RevealOnInteraction(card, remove);
         void UpdateCourse()
         {
             var blank = string.IsNullOrWhiteSpace(row.Course);
             courseLabel.Text = blank ? "选择课程" : row.Course;
             courseLabel.Foreground = Brush(blank ? "TextFillColorTertiaryBrush" : "TextFillColorPrimaryBrush");
-            ToolTipService.SetToolTip(course, blank ? "选择或输入课程名称" : row.Course + " · 点击修改");
+            ToolTipService.SetToolTip(course, "编辑课程和时间 · " + (blank ? "选择或输入课程名称" : row.Course));
             AutomationProperties.SetName(course, blank ? "选择课程" : "修改课程 " + row.Course);
             card.Background = CourseBrush(row.Course);
         }
@@ -438,38 +478,18 @@ public sealed partial class MainWindow
             timeLabel.FontSize = 10;
             card.Padding = new Thickness(8, 4, 0, 4);
         };
-        var menu = new MenuFlyout();
-        foreach (var name in Courses)
-        {
-            var item = new MenuFlyoutItem { Text = name };
-            item.Click += (_, _) => { row.Course = name; UpdateCourse(); Changed(); };
-            menu.Items.Add(item);
-        }
-        menu.Items.Add(new MenuFlyoutSeparator());
-        var custom = new MenuFlyoutItem { Text = "自定义课程…", Icon = new SymbolIcon(Symbol.Edit) };
-        custom.Click += async (_, _) =>
-        {
-            var field = new TextBox { Header = "课程名称", PlaceholderText = "例如：自习、班会、数学周测", Text = row.Course, MaxLength = 80 };
-            var error = Text("", 12); error.Foreground = Brush("SystemFillColorCriticalBrush");
-            var panel = new StackPanel { Spacing = 8 }; panel.Children.Add(field); panel.Children.Add(error);
-            var dialog = new ContentDialog { Title = "自定义课程", Content = panel, PrimaryButtonText = "确定", CloseButtonText = "取消", DefaultButton = ContentDialogButton.Primary };
-            dialog.Opened += (_, _) => { field.Focus(FocusState.Programmatic); field.SelectAll(); };
-            dialog.PrimaryButtonClick += (_, args) => { if (string.IsNullOrWhiteSpace(field.Text)) { args.Cancel = true; error.Text = "请输入课程名称。"; } };
-            if (await Dialog(dialog) == ContentDialogResult.Primary) { row.Course = field.Text.Trim(); UpdateCourse(); Changed(); }
-        };
-        menu.Items.Add(custom);
-        course.Flyout = menu;
-        // The whole card is an edit target. Keep the time button reserved for time editing.
-        card.PointerPressed += (_, args) =>
+        // Use a completed tap, not pointer-down, so dragging or scrolling does
+        // not open an editor. Buttons handle keyboard activation themselves.
+        card.Tapped += async (_, args) =>
         {
             var source = args.OriginalSource as DependencyObject;
-            var insideTime = false;
             while (source != null && source != card)
             {
-                if (source == time || source == remove || source == course) { insideTime = true; break; }
+                if (source == time || source == remove || source == course) return;
                 source = VisualTreeHelper.GetParent(source);
             }
-            if (!insideTime && source != time && source != remove) menu.ShowAt(card);
+            args.Handled = true;
+            await EditCourse();
         };
         return card;
     }
