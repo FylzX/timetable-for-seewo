@@ -15,6 +15,9 @@ internal static class PortableLauncher
         string root = AppDomain.CurrentDomain.BaseDirectory;
         try
         {
+            if (args.Length == 2 && args[0] == "--apply-update") return PortableUpdateInstaller.Run(args[1]);
+            if (args.Length == 3 && args[0] == "--recover-update") return PortableUpdateInstaller.RecoverFromCopy(args[1], Int32.Parse(args[2]));
+            if (!PortableUpdateInstaller.Recover(root, args)) return 0;
             string executable = Path.Combine(root, "app", "DesktopTimetable.exe");
             if (!File.Exists(executable) || !File.Exists(Path.Combine(root, "app", "resources.pri")))
                 throw new FileNotFoundException("程序文件不完整，请移动整个 release 文件夹，保留 app 子目录。");

@@ -47,8 +47,13 @@ try {
     $compiler = Join-Path $env:WINDIR 'Microsoft.NET/Framework64/v4.0.30319/csc.exe'
     if (-not (Test-Path -LiteralPath $compiler)) { throw 'Windows .NET Framework compiler is missing.' }
     $launcherStage = Join-Path $stage 'PortableLauncher.exe'
-    & $compiler /nologo /target:winexe /platform:x64 /optimize+ /reference:System.Windows.Forms.dll ('/win32icon:' + (Join-Path $projectRoot 'winui-app/Assets/calendar.ico')) ('/out:' + $launcherStage) (Join-Path $projectRoot 'winui-app/PortableLauncher.cs')
+    $versionInfo = [Diagnostics.FileVersionInfo]::GetVersionInfo((Join-Path $stage 'DesktopTimetable.dll'))
+    $version = '{0}.{1}.{2}' -f $versionInfo.FileMajorPart,$versionInfo.FileMinorPart,$versionInfo.FileBuildPart
+    $launcherVersion = Join-Path $stage 'LauncherVersion.cs'
+    [IO.File]::WriteAllText($launcherVersion, ('[assembly: System.Reflection.AssemblyVersion("' + $version + '.0")][assembly: System.Reflection.AssemblyFileVersion("' + $version + '.0")]'))
+    & $compiler /nologo /target:winexe /platform:x64 /optimize+ /reference:System.Windows.Forms.dll ('/win32icon:' + (Join-Path $projectRoot 'winui-app/Assets/calendar.ico')) ('/out:' + $launcherStage) (Join-Path $projectRoot 'winui-app/PortableLauncher.cs') (Join-Path $projectRoot 'winui-app/PortableUpdateInstaller.cs') (Join-Path $projectRoot 'winui-app/UpdatePackage.cs') $launcherVersion
     if ($LASTEXITCODE -ne 0) { throw "Launcher build failed: $LASTEXITCODE" }
+    Remove-Item -LiteralPath $launcherVersion -Force
     Move-Item -LiteralPath $launcherStage -Destination (Join-Path $output 'DesktopTimetable.exe') -Force
     Remove-GeneratedDirectory $appOutput
     Move-Item -LiteralPath $stage -Destination $appOutput
@@ -73,6 +78,12 @@ try {
     if (Test-Path -LiteralPath $previousLauncher) { Remove-Item -LiteralPath $previousLauncher -Force }
     $info = "Double-click DesktopTimetable.exe to open the C# WinUI timetable.`r`nMove the whole folder, including app and JSON files. The root EXE is a small launcher.`r`nPython and .NET installation are not required on the target PC.`r`nRequires Windows 10 1809+ or Windows 11, x64. Windows 11 recommended.`r`nSettings and startup.log are saved in user-data beside these JSON files.`r`nRebuilding preserves your edited JSON files and user-data.`r`n"
     [IO.File]::WriteAllText((Join-Path $output 'Portable.txt'), $info, [Text.Encoding]::UTF8)
+    . (Join-Path $projectRoot 'tools/package-update.ps1')
+    New-UpdatePackage $output (Join-Path $projectRoot ('updatepack/' + $version)) $version
+    # Remove the outputs of the previous packaging layout from the portable app.
+    Remove-GeneratedDirectory (Join-Path $output 'packages')
+    $previousManifest = Join-Path $output 'update-manifest.xml'
+    if (Test-Path -LiteralPath $previousManifest) { Remove-Item -LiteralPath $previousManifest -Force }
     Write-Host "Portable folder: $output"
     Write-Host 'The editor is included in the main C# app. No installer was generated.'
 }

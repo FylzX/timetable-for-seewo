@@ -29,6 +29,7 @@ public sealed partial class MainWindow : Window
     private EditorData data = new();
     private Timetable.Editor.MainWindow? editor;
     private TestTimeWindow? testWindow;
+    private UpdateWindow? updateWindow;
     private int? previewDay;
     private bool locked, dragging, resizing, closing, approvedClose, windowClosed;
     private int resizeEdges;
@@ -44,7 +45,7 @@ public sealed partial class MainWindow : Window
         StartupLog.Write("MainWindow.InitializeComponent");
         InitializeComponent();
         StartupLog.Write("MainWindow XAML initialized");
-        Title = "桌面课表";
+        Title = "桌面课表 v" + UpdateClient.CurrentVersion;
         this.directory = directory;
         files = new ScheduleFiles(directory);
         statePath = Path.Combine(directory, "user-data", "settings-csharp.json");
@@ -72,7 +73,7 @@ public sealed partial class MainWindow : Window
         timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         timer.Tick += (_, _) => Tick();
         timer.Start();
-        Closed += (_, _) => { windowClosed = true; timer.Stop(); native.Dispose(); testWindow?.Close(); };
+        Closed += (_, _) => { windowClosed = true; timer.Stop(); native.Dispose(); testWindow?.Close(); updateWindow?.Close(); };
         Root.RightTapped += (_, args) => { ShowMenu(args.GetPosition(Root)); args.Handled = true; };
         Root.PointerPressed += StartDrag;
         Root.PointerMoved += MoveDrag;
@@ -165,6 +166,17 @@ public sealed partial class MainWindow : Window
         StartupLog.Write("Test clock loaded");
         testWindow.Close();
         if (!await editor!.RequestCloseAsync()) throw new InvalidOperationException("Unedited editor did not close.");
+        var commandLine = Environment.GetCommandLineArgs();
+        var updateCheck = Array.IndexOf(commandLine, "--update-ui-remote");
+        if (updateCheck >= 0 && updateCheck + 1 < commandLine.Length)
+        {
+            if (!commandLine.Contains("--update-test-url")) throw new InvalidOperationException("更新界面检查需要本机模拟服务。");
+            CheckUpdates();
+            await Task.Delay(300);
+            await updateWindow!.CheckPresentationAsync(commandLine[updateCheck + 1]);
+            StartupLog.Write("Update window status and local/remote versions verified");
+            updateWindow.Close();
+        }
         approvedClose = true;
         Close();
     }
@@ -421,6 +433,7 @@ public sealed partial class MainWindow : Window
         menu.Items.Add(preview);
         Add("恢复默认位置和大小", ResetPlacement);
         Add("重新读取课表", LoadData);
+        Add("检查更新", CheckUpdates);
         menu.Items.Add(new MenuFlyoutSeparator());
         Add("退出", Close);
         menu.ShowAt(Root, point);
@@ -444,6 +457,7 @@ public sealed partial class MainWindow : Window
             case 1004: Close(); break;
             case 1005: LockClicked(this, new RoutedEventArgs()); break;
             case 1006: ResetPlacement(); break;
+            case 1007: CheckUpdates(); break;
             case 1009: previewDay = null; Render(); break;
             default: if (command is >= 1010 and <= 1016) { previewDay = command - 1010; Render(); } break;
         }
@@ -455,6 +469,32 @@ public sealed partial class MainWindow : Window
         testWindow = new TestTimeWindow(clock, Render);
         testWindow.Closed += (_, _) => testWindow = null;
         testWindow.Activate();
+    }
+
+    private void CheckUpdates()
+    {
+        if (updateWindow != null) { updateWindow.Activate(); return; }
+        var args = Environment.GetCommandLineArgs();
+        var index = Array.IndexOf(args, "--update-test-url");
+        Uri? testBase = index >= 0 && index + 1 < args.Length ? new Uri(args[index + 1]) : null;
+        updateWindow = new UpdateWindow(testBase, async () =>
+        {
+            if (editor != null && !await editor.RequestCloseAsync()) return false;
+            SavePlacement(); return true;
+        }, () => { approvedClose = true; Close(); Application.Current.Exit(); });
+        updateWindow.Closed += (_, _) => updateWindow = null;
+        updateWindow.Activate();
+    }
+
+    internal void WriteUpdateHealth(string path)
+    {
+        var root = new DirectoryInfo(AppContext.BaseDirectory).Parent!.FullName;
+        var work = Path.Combine(root, ".update") + Path.DirectorySeparatorChar;
+        var target = Path.GetFullPath(path);
+        if (!target.StartsWith(work, StringComparison.OrdinalIgnoreCase) || Path.GetDirectoryName(target) != work.TrimEnd(Path.DirectorySeparatorChar)
+            || !Path.GetFileName(target).StartsWith("health-", StringComparison.Ordinal)) throw new InvalidDataException("启动检查路径无效。");
+        if (loadError != null || Root.XamlRoot == null || Root.ActualWidth <= 0) throw new InvalidOperationException("新版启动检查失败：" + loadError);
+        File.WriteAllText(target, UpdateClient.CurrentVersion);
     }
 
     private void StartDrag(object sender, PointerRoutedEventArgs args)

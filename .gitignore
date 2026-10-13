@@ -1,5 +1,6 @@
 # Portable releases, old binaries and generated packages.
 release/
+updatepack/
 dist/
 build/
 publish/
@@ -34,6 +35,7 @@ htmlcov/
 
 # Runtime settings, logs, temporary files and local backups.
 user-data/
+.update/
 *.log
 *.log.*
 *.tmp

@@ -31,7 +31,10 @@ public partial class App : Application
         var interactionTest = commandLine.Contains("--interaction-test");
         if (!smokeTest && !interactionTest && !commandLine.Contains("--layer-test"))
         {
-            instanceMutex = new Mutex(true, "Local\\DesktopTimetable.CSharp", out var firstInstance);
+            var testIndex = Array.IndexOf(commandLine, "--update-test-url");
+            var suffix = testIndex >= 0 ? ".UpdateLab." + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+                System.Text.Encoding.UTF8.GetBytes(AppContext.BaseDirectory.ToUpperInvariant())))[..16] : "";
+            instanceMutex = new Mutex(true, "Local\\DesktopTimetable.CSharp" + suffix, out var firstInstance);
             if (!firstInstance) { instanceMutex.Dispose(); Exit(); return; }
         }
         var index = Array.IndexOf(commandLine, "--data-dir");
@@ -43,6 +46,12 @@ public partial class App : Application
         StartupLog.Write("MainWindow activated");
         window.AttachToDesktop();
         StartupLog.Write("Desktop attached");
+        var healthIndex = Array.IndexOf(commandLine, "--update-health");
+        if (healthIndex >= 0 && healthIndex + 1 < commandLine.Length)
+        {
+            await Task.Delay(500);
+            window.WriteUpdateHealth(commandLine[healthIndex + 1]);
+        }
         if (smokeTest || interactionTest)
         {
             if (interactionTest) await window.CheckInteractionsAsync();

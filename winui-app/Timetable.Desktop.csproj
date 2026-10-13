@@ -5,6 +5,7 @@
     <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
     <RootNamespace>Timetable.Desktop</RootNamespace>
     <AssemblyName>DesktopTimetable</AssemblyName>
+    <Version>1.2.0</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets/calendar.ico</ApplicationIcon>
     <Platforms>x64</Platforms>
@@ -31,6 +32,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Remove="PortableLauncher.cs" />
+    <Compile Remove="PortableUpdateInstaller.cs" />
     <EmbeddedResource Include="Assets/calendar.ico" LogicalName="Timetable.CalendarIcon" />
     <Compile Include="../winui-editor/Models.cs" Link="Core/Models.cs" />
     <Compile Include="../winui-editor/TimeText.cs" Link="Core/TimeText.cs" />

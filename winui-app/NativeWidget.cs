@@ -161,6 +161,7 @@ internal sealed class NativeWidget : IDisposable
             AppendMenu(menu, 0x10, preview, "查看课表");
             AppendMenu(menu, 0, 1006, "恢复默认位置和大小");
             AppendMenu(menu, 0, 1002, "重新读取课表");
+            AppendMenu(menu, 0, 1007, "检查更新");
             AppendMenu(menu, 0x800, 0, null);
             AppendMenu(menu, 0, 1004, "退出");
             SetForegroundWindow(hwnd);
