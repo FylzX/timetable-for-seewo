@@ -154,7 +154,7 @@ internal sealed class NativeWidget : IDisposable
         try
         {
             AppendMenu(menu, 0, 1001, "编辑课表");
-            AppendMenu(menu, 0, 1003, "调整测试时间");
+            AppendMenu(menu, 0, 1003, "调整时间(测试用)");
             AppendMenu(menu, 0, 1005, "锁定 / 解锁位置和大小");
             AppendMenu(preview, 0, 1009, "自动显示今天");
             for (var day = 0; day < 7; day++) AppendMenu(preview, 0, 1010 + day, DailyNames[day]);

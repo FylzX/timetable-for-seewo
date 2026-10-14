@@ -1,17 +1,19 @@
 # 发布更新
 
-正式版本号在 `winui-app/Timetable.Desktop.csproj` 的 `Version` 中设置，当前为 `1.2.0`
+版本号由维护者在 `winui-app/Timetable.Desktop.csproj` 的 `Version` 中手动管理。构建脚本不会按版本号选择便携目录。
 
-运行 `build-portable.ps1` 后，便携程序位于 `release/`，更新附件位于 `updatepack/1.2.0/`（后续版本使用对应的版本号目录）
+运行 `build-portable.ps1` 后，完整便携程序目录固定写入 `release/latest/`，更新 ZIP 与 SHA-256 文件写入 `updatepack/<项目版本>/`。构建不会修改 `release/` 下其他版本目录。
 
-`release/` 可以整体压缩为便携版 ZIP，供用户首次下载、解压后双击使用，更新附件放在独立目录，不要放入便携版 ZIP
+`release/latest/` 是每次构建更新的工作副本，不是版本归档。发布便携版时由维护者手动将选定的完整便携内容归档到 `release/<版本>/` 并制作 ZIP；本项目构建脚本不做这一步。由于构建会保留 `latest` 中现有 JSON 和 `user-data/`，打包前由维护者确认课表数据并排除本机设置、日志、旧 ZIP 和测试文件。自动更新附件始终放在独立的 `updatepack/<版本>/`。
 
-在 GitHub 创建正式 Release，标签与程序版本对应，例如 `v1.2.0`，上传便携版 ZIP 和这两个更新附件：
+在 GitHub 创建正式 Release，标签与项目版本对应，例如 `v1.3.1`，上传维护者制作的便携版 ZIP 和构建脚本生成的这两个更新附件：
 
 - `DesktopTimetable-update-win-x64.zip`
 - `DesktopTimetable-update-win-x64.zip.sha256`
 
 便携版 ZIP 供用户手动下载，更新 ZIP 供程序自动下载，只包含启动器、`app/` 和内部文件清单，`.sha256` 是更新 ZIP 的完整性校验文件
+
+每个版本的更新 ZIP 都包含该版本完整的启动器、程序、.NET 和 WinUI 运行依赖，可以跨版本更新，不需要逐个安装中间版本。更新时整体替换 `app/`，不会沿用旧程序文件；三个课表 JSON、`user-data/` 和其他用户文件留在原位置，缺失的 JSON 由新版首次启动时自动生成
 
 v1.2.0 是首个支持自动更新的正式版，旧的 v1.1.0 用户需要手动下载本体，v1.2.0 用户会在发布更高版本（例如 v1.2.1）后收到更新提示，各版本的更新附件与该版本本体使用同一次构建结果
 
@@ -24,5 +26,3 @@ v1.2.0 是首个支持自动更新的正式版，旧的 v1.1.0 用户需要手�
 更新失败会尝试恢复旧程序；安装过程被中断时，下次启动会先恢复未完成的更新。工作目录 `.update/` 留在便携目录内，无需安装到 Program Files。恢复详情写入 `user-data/update.log`
 
 只读目录、文件被占用、网络错误或不完整发布附件会给出失败状态。SHA-256 用于下载完整性检查，发布安全仍依赖 GitHub 仓库与发布账号的安全
-
-本机模拟更新和自动回归测试见 `update-lab/README.md`，测试构建内部标记为 `1.1.0`，请勿作为正式版本发布

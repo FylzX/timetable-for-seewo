@@ -1,7 +1,7 @@
 param([string]$ReleaseDirectory = '', [switch]$Interactions, [switch]$EditorOnly)
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$releaseRoot = if ($ReleaseDirectory) { [IO.Path]::GetFullPath($ReleaseDirectory) } else { Join-Path $projectRoot 'release' }
+$releaseRoot = if ($ReleaseDirectory) { [IO.Path]::GetFullPath($ReleaseDirectory) } else { Join-Path $projectRoot 'release/latest' }
 $executable = Join-Path $releaseRoot 'DesktopTimetable.exe'
 if (-not (Test-Path -LiteralPath $executable)) { throw 'Run build-portable.ps1 first.' }
 $testRoot = Join-Path $projectRoot 'test-output'

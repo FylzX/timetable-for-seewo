@@ -19,7 +19,7 @@ internal sealed class UpdateClient : IDisposable
     private readonly Uri? testBase;
     private const long MaximumPackage = 1024L * 1024 * 1024;
     internal static string CurrentVersion => Assembly.GetExecutingAssembly().GetName().Version is { } version
-        ? $"{version.Major}.{version.Minor}.{version.Build}" : "1.2.0";
+        ? $"{version.Major}.{version.Minor}.{version.Build}" : "1.3.0";
 
     internal UpdateClient(Uri? testBase = null, TimeSpan? timeout = null)
     {

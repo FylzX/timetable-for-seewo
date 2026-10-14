@@ -1,4 +1,4 @@
-param([string]$ReleaseDirectory = (Join-Path (Split-Path -Parent $PSScriptRoot) 'release'))
+param([string]$ReleaseDirectory = '')
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms,System.Drawing
 Add-Type -ReferencedAssemblies System.Windows.Forms,System.Drawing -TypeDefinition @'
@@ -42,6 +42,7 @@ function Pump([int]$Milliseconds) {
 }
 $child = $null; $overlay = $null; $desktopToggled = $false; $shell = $null
 $projectRoot = Split-Path -Parent $PSScriptRoot
+if (-not $ReleaseDirectory) { $ReleaseDirectory = Join-Path $projectRoot 'release/latest' }
 $testRoot = Join-Path $projectRoot 'test-output'
 New-Item -ItemType Directory -Force -Path $testRoot | Out-Null
 $data = Join-Path $testRoot ('desktop-layer-' + [Guid]::NewGuid().ToString('N'))

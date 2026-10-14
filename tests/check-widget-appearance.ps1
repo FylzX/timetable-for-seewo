@@ -1,7 +1,8 @@
 # Captures only our widget over a synthetic background, never the whole desktop.
-param([string]$ReleaseDirectory = (Join-Path (Split-Path -Parent $PSScriptRoot) 'release'))
+param([string]$ReleaseDirectory = '')
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
+if (-not $ReleaseDirectory) { $ReleaseDirectory = Join-Path $root 'release/latest' }
 $output = Join-Path $root 'test-output/widget-appearance'
 $data = Join-Path $output 'data'
 New-Item -ItemType Directory -Force -Path $data | Out-Null

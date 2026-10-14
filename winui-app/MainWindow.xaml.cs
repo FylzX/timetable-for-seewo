@@ -416,12 +416,29 @@ public sealed partial class MainWindow : Window
     private void ShowMenu(Point point)
     {
         var menu = new MenuFlyout();
-        void Add(string text, Action clicked) { var item = new MenuFlyoutItem { Text = text }; item.Click += (_, _) => clicked(); menu.Items.Add(item); }
-        Add("编辑课表", () => EditClicked(this, new RoutedEventArgs()));
-        Add("调整测试时间", OpenTestTime);
+        FontIcon Icon(string glyph) => new() { Glyph = glyph, FontSize = 16 };
+        void Compact(MenuFlyoutItemBase item)
+        {
+            // WinUI normally reserves separate slots for checks and icons when
+            // both occur in a menu. Share one slot and align every text label.
+            item.Resources["MenuFlyoutItemPlaceholderThemeThickness"] = new Thickness(0);
+            item.Resources["MenuFlyoutItemDoublePlaceholderThemeThickness"] =
+                new Thickness(28, 0, 0, 0);
+        }
+        void Add(string text, Action clicked, string? glyph = null)
+        {
+            var item = new MenuFlyoutItem { Text = text };
+            if (glyph != null) item.Icon = Icon(glyph);
+            Compact(item);
+            item.Click += (_, _) => clicked(); menu.Items.Add(item);
+        }
+        Add("编辑课表", () => EditClicked(this, new RoutedEventArgs()), "\uE70F");
+        Add("调整时间(测试用)", OpenTestTime);
         var toggle = new ToggleMenuFlyoutItem { Text = "锁定位置和大小", IsChecked = locked };
+        Compact(toggle);
         toggle.Click += LockClicked; menu.Items.Add(toggle);
-        var preview = new MenuFlyoutSubItem { Text = "查看课表" };
+        var preview = new MenuFlyoutSubItem { Text = "查看课表", Icon = Icon("\uE787") };
+        Compact(preview);
         var today = new ToggleMenuFlyoutItem { Text = "自动显示今天", IsChecked = previewDay == null };
         today.Click += (_, _) => { previewDay = null; Render(); }; preview.Items.Add(today);
         for (var day = 0; day < 7; day++)
@@ -432,8 +449,8 @@ public sealed partial class MainWindow : Window
         }
         menu.Items.Add(preview);
         Add("恢复默认位置和大小", ResetPlacement);
-        Add("重新读取课表", LoadData);
-        Add("检查更新", CheckUpdates);
+        Add("重新读取课表", LoadData, "\uE72C");
+        Add("检查更新", CheckUpdates, "\uE895");
         menu.Items.Add(new MenuFlyoutSeparator());
         Add("退出", Close);
         menu.ShowAt(Root, point);

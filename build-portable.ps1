@@ -1,16 +1,19 @@
 param(
-    [string]$OutputDirectory = (Join-Path $PSScriptRoot 'release')
+    [string]$OutputDirectory = (Join-Path $PSScriptRoot 'release/latest')
 )
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = (Resolve-Path -LiteralPath $PSScriptRoot).Path
-$output = [IO.Path]::GetFullPath($OutputDirectory)
+$appProject = Join-Path $projectRoot 'winui-app/Timetable.Desktop.csproj'
+if (-not (Test-Path -LiteralPath $appProject)) { throw 'C# main project is missing.' }
+[xml]$projectFile = Get-Content -LiteralPath $appProject -Raw
+$configuredVersion = [string]($projectFile.Project.PropertyGroup | Where-Object { $_.Version } | Select-Object -First 1 -ExpandProperty Version)
+if ($configuredVersion -notmatch '^\d+\.\d+\.\d+$') { throw 'Project version must use three numeric parts.' }
 $releaseRoot = [IO.Path]::GetFullPath((Join-Path $projectRoot 'release'))
+$output = [IO.Path]::GetFullPath($OutputDirectory)
 if ($output -ne $releaseRoot -and -not $output.StartsWith($releaseRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
     throw 'Output must be release or one of its subdirectories.'
 }
-$appProject = Join-Path $projectRoot 'winui-app/Timetable.Desktop.csproj'
-if (-not (Test-Path -LiteralPath $appProject)) { throw 'C# main project is missing.' }
 
 # Only replace generated application files. Keep edited schedules and settings.
 New-Item -ItemType Directory -Force -Path $output | Out-Null
@@ -49,6 +52,7 @@ try {
     $launcherStage = Join-Path $stage 'PortableLauncher.exe'
     $versionInfo = [Diagnostics.FileVersionInfo]::GetVersionInfo((Join-Path $stage 'DesktopTimetable.dll'))
     $version = '{0}.{1}.{2}' -f $versionInfo.FileMajorPart,$versionInfo.FileMinorPart,$versionInfo.FileBuildPart
+    if ($version -ne $configuredVersion) { throw 'Published application version differs from the project version.' }
     $launcherVersion = Join-Path $stage 'LauncherVersion.cs'
     [IO.File]::WriteAllText($launcherVersion, ('[assembly: System.Reflection.AssemblyVersion("' + $version + '.0")][assembly: System.Reflection.AssemblyFileVersion("' + $version + '.0")]'))
     & $compiler /nologo /target:winexe /platform:x64 /optimize+ /reference:System.Windows.Forms.dll ('/win32icon:' + (Join-Path $projectRoot 'winui-app/Assets/calendar.ico')) ('/out:' + $launcherStage) (Join-Path $projectRoot 'winui-app/PortableLauncher.cs') (Join-Path $projectRoot 'winui-app/PortableUpdateInstaller.cs') (Join-Path $projectRoot 'winui-app/UpdatePackage.cs') $launcherVersion

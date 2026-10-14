@@ -42,6 +42,29 @@ public sealed partial class MainWindow
         return button;
     }
 
+    private Button AddCourseButton(RoutedEventHandler clicked)
+    {
+        var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        var plus = Text("+", 24);
+        plus.FontWeight = Microsoft.UI.Text.FontWeights.Bold;
+        plus.VerticalAlignment = VerticalAlignment.Center;
+        content.Children.Add(plus);
+        var label = Text("添加课程", 13, true);
+        label.VerticalAlignment = VerticalAlignment.Center;
+        content.Children.Add(label);
+        var button = new Button
+        {
+            Content = content, Height = 36, MinHeight = 36, MinWidth = 0,
+            Padding = new Thickness(8, 0, 8, 0), BorderThickness = new Thickness(1.5),
+            BorderBrush = Brush("SystemControlHighlightAccentBrush"), CornerRadius = new CornerRadius(0),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center
+        };
+        button.Click += clicked;
+        return button;
+    }
+
     private void ToggleTemplatesClicked(object sender, RoutedEventArgs args)
     {
         templatesExpanded = !templatesExpanded;
@@ -214,7 +237,7 @@ public sealed partial class MainWindow
         DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, Restore);
     }
 
-    private static double NaturalBoardHeight(TimelineLayout timeline) => timeline.MinimumExtent + 92;
+    private static double NaturalBoardHeight(TimelineLayout timeline) => timeline.MinimumExtent + 104;
 
     private Grid ScrollFrame(ScrollViewer scroll, string label)
     {
@@ -243,7 +266,7 @@ public sealed partial class MainWindow
         var board = new Grid();
         board.RowDefinitions.Add(new() { Height = new GridLength(44) });
         board.RowDefinitions.Add(new() { Height = new GridLength(1, GridUnitType.Star) });
-        board.RowDefinitions.Add(new() { Height = new GridLength(32) });
+        board.RowDefinitions.Add(new() { Height = new GridLength(44) });
         var headings = new Grid(); var footer = new Grid();
         var emptyColumns = new Dictionary<int, StackPanel>();
         foreach (var grid in new[] { headings, footer })
@@ -290,7 +313,7 @@ public sealed partial class MainWindow
             }
             else heading.Children.Add(title);
             Grid.SetColumn(heading, index + 1); headings.Children.Add(heading);
-            var add = FlatButton(Text("＋ 添加课程", 12), async (_, _) =>
+            var add = AddCourseButton(async (_, _) =>
             {
                 var row = await EditTime(null, rows, includeCourse: true);
                 if (row != null) { rows.Add(row); Sort(rows); Rebuild(); Changed(); }
@@ -301,10 +324,6 @@ public sealed partial class MainWindow
             if (rows.Count == 0)
             {
                 add.Style = (Style)Application.Current.Resources["AccentButtonStyle"];
-                add.Content = "＋ 添加课程";
-                add.FontSize = 14;
-                add.Height = 36;
-                add.HorizontalContentAlignment = HorizontalAlignment.Center;
                 var empty = Text(exceptions ? "当天放假" : "暂无课程", 13);
                 empty.Foreground = Brush("TextFillColorSecondaryBrush");
                 empty.TextAlignment = TextAlignment.Center;
@@ -314,7 +333,7 @@ public sealed partial class MainWindow
             }
             else
             {
-                add.Foreground = Brush("TextFillColorSecondaryBrush"); add.Margin = new Thickness(10, 0, 8, 0);
+                add.Margin = new Thickness(10, 4, 8, 4);
                 Grid.SetColumn(add, index + 1); footer.Children.Add(add);
             }
         }

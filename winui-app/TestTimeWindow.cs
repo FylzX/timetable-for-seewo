@@ -27,10 +27,10 @@ internal sealed class TestTimeWindow : Window
     internal TestTimeWindow(SimulationClock clock, Action changed)
     {
         this.clock = clock; this.changed = changed;
-        Title = "调整测试时间";
+        Title = "调整时间(测试用)";
         if (Microsoft.UI.Composition.SystemBackdrops.MicaController.IsSupported()) SystemBackdrop = new MicaBackdrop();
         var panel = new StackPanel { Spacing = 16, Padding = new Thickness(24) };
-        panel.Children.Add(new TextBlock { Text = "调整测试时间", FontSize = 24, FontWeight = FontWeights.SemiBold });
+        panel.Children.Add(new TextBlock { Text = "调整时间(测试用)", FontSize = 24, FontWeight = FontWeights.SemiBold });
         panel.Children.Add(new TextBlock { Text = "拖动时针或分针，也可以直接选择日期和时间。", TextWrapping = TextWrapping.Wrap });
         panel.Children.Add(dial);
         var hint = new TextBlock { Text = "24 小时制 · 拨动时针保留当前上午 / 下午", FontSize = 12, HorizontalAlignment = HorizontalAlignment.Center };

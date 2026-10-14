@@ -1,6 +1,7 @@
 # Portable releases, old binaries and generated packages.
 release/
 updatepack/
+portable-archives/
 dist/
 build/
 publish/
@@ -65,3 +66,6 @@ Desktop.ini
 # Keep source assets (*.ico), PyInstaller recipes (*.spec), public NuGet.Config,
 # and the initial timetable.json / exceptions.json / template.json in Git.
 # Editable release data is excluded by release/ above.
+
+# Local maintenance handbook.
+/maintenance.md
