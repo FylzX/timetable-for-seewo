@@ -40,7 +40,7 @@
         <Grid Grid.Row="1" Padding="20,0,20,8" RowSpacing="4">
             <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
             <InfoBar x:Name="Notice" IsOpen="False" IsClosable="True" />
-            <TabView x:Name="Tabs" Grid.Row="1" IsAddTabButtonVisible="False" TabWidthMode="SizeToContent">
+            <TabView x:Name="Tabs" Grid.Row="1" IsAddTabButtonVisible="False" TabWidthMode="SizeToContent" SelectionChanged="EditorTabChanged">
                 <TabView.TabStripFooter>
                     <Grid HorizontalAlignment="Stretch">
                         <Button x:Name="SaveButton" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="12,0,0,4" Style="{ThemeResource AccentButtonStyle}" Click="SaveClicked" MinWidth="120">
@@ -71,6 +71,34 @@
                             <Grid x:Name="ExceptionBoardHost" Grid.Column="1" />
                         </Grid>
                     </Grid>
+                </TabViewItem>
+                <TabViewItem Header="设置" IsClosable="False">
+                    <TabViewItem.IconSource><SymbolIconSource Symbol="Setting" /></TabViewItem.IconSource>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Spacing="20" Margin="24" MaxWidth="640" HorizontalAlignment="Left">
+                            <TextBlock Text="外观" Style="{ThemeResource SubtitleTextBlockStyle}" />
+                            <Border Padding="24" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="12">
+                                <StackPanel Spacing="16" MinWidth="320">
+                                    <Grid ColumnSpacing="24">
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                        <TextBlock Text="背景不透明度" FontSize="16" FontWeight="SemiBold" />
+                                        <TextBlock x:Name="BackgroundOpacityValue" Grid.Column="1" FontSize="16" />
+                                    </Grid>
+                                    <TextBlock Text="调整桌面课表的背景，文字和按钮保持清晰。拖动滑块可实时预览。" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                    <Slider x:Name="BackgroundOpacitySlider" Minimum="0" Maximum="100" StepFrequency="0.1" ValueChanged="BackgroundOpacityChanged" AutomationProperties.Name="背景不透明度" />
+                                    <Grid>
+                                        <TextBlock Text="0% · 完全透明" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        <TextBlock Text="100% · 完全不透明" HorizontalAlignment="Right" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    </Grid>
+                                    <Button Content="恢复默认" Click="ResetBackgroundOpacity" />
+                                </StackPanel>
+                            </Border>
+                            <StackPanel Orientation="Horizontal" Spacing="16">
+                                <Button x:Name="SaveSettingsButton" Content="保存设置" Style="{ThemeResource AccentButtonStyle}" Click="SaveSettingsClicked" />
+                                <TextBlock x:Name="SettingsStatus" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
                 </TabViewItem>
             </TabView>
             <Grid Grid.Row="2">

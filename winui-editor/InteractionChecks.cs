@@ -10,6 +10,44 @@ namespace Timetable.Editor;
 
 public sealed partial class MainWindow
 {
+    internal async Task CheckAppearanceAsync(Action<byte> checkBackground)
+    {
+        var original = savedBackgroundOpacity;
+        Tabs.SelectedIndex = 2;
+        await Task.Delay(200);
+        if (SaveButton.Visibility != Visibility.Collapsed || BackgroundOpacitySlider.ActualWidth <= 0)
+            throw new InvalidOperationException("Appearance settings tab did not render.");
+        foreach (var value in new[] { 0.0, 37.5, 100.0 })
+        {
+            BackgroundOpacitySlider.Value = value;
+            await Task.Delay(50);
+            checkBackground((byte)Math.Round(value / 100 * 255));
+            if (!SettingsDirty || !HasUnsavedChanges || !SaveSettingsButton.IsEnabled || ScheduleDirty)
+                throw new InvalidOperationException("Appearance changes did not stay independent from the schedule.");
+            if (!SaveAppearance() || SettingsDirty || settings.ReadBackgroundOpacity() != value)
+                throw new InvalidOperationException("Appearance settings did not persist.");
+        }
+        ResetBackgroundOpacity(this, new RoutedEventArgs());
+        checkBackground(242);
+        if (Math.Abs(BackgroundOpacitySlider.Value - DesktopSettings.DefaultBackgroundOpacity) > .000001)
+            throw new InvalidOperationException("Reset changed the original background opacity.");
+        BackgroundOpacitySlider.Value = original;
+        if (!SaveAppearance()) throw new InvalidOperationException("Could not restore appearance fixture.");
+        // Leave a preview pending for the real close/discard check in the host.
+        BackgroundOpacitySlider.Value = original > 50 ? 25 : 75;
+    }
+
+    internal async Task DiscardAppearanceCheckAsync()
+    {
+        var closingTask = RequestCloseAsync();
+        await Task.Delay(400);
+        var dialog = VisualTreeHelper.GetOpenPopupsForXamlRoot(Root.XamlRoot)
+            .SelectMany(popup => Descendants(popup.Child).Prepend(popup.Child)).OfType<ContentDialog>().Single();
+        var discard = Descendants(dialog).OfType<Button>().Single(button => button.Content is string text && text == "放弃修改");
+        ((IInvokeProvider)new ButtonAutomationPeer(discard).GetPattern(PatternInterface.Invoke)).Invoke();
+        if (!await closingTask) throw new InvalidOperationException("Discarding settings did not close the editor.");
+    }
+
     internal async Task CheckTimeEntryAsync()
     {
         var entry = new TimeEntry("测试时间", new TimeSpan(8, 0, 0));

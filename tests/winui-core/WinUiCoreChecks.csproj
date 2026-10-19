@@ -7,6 +7,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../../winui-editor/Models.cs" Link="Models.cs" />
+    <Compile Include="../../winui-editor/DesktopSettings.cs" Link="DesktopSettings.cs" />
     <Compile Include="../../winui-editor/TimeText.cs" Link="TimeText.cs" />
     <Compile Include="../../winui-editor/ScheduleFiles.cs" Link="ScheduleFiles.cs" />
     <Compile Include="../../winui-editor/TimelineLayout.cs" Link="TimelineLayout.cs" />

@@ -22,7 +22,8 @@ public sealed partial class MainWindow : Window
     private readonly string directory;
     private bool ready, approvedClose, closing, dialogOpen;
     private bool renderingTheme;
-    private bool Dirty => ready && ScheduleFiles.Fingerprint(data) != baseline;
+    private bool ScheduleDirty => ready && ScheduleFiles.Fingerprint(data) != baseline;
+    private bool Dirty => ScheduleDirty || SettingsDirty;
     public event Action? Saved;
     public bool HasUnsavedChanges => Dirty;
 
@@ -75,6 +76,7 @@ public sealed partial class MainWindow : Window
             Tabs.IsEnabled = false;
             ShowNotice("无法打开课表", error.Message, InfoBarSeverity.Error);
         }
+        InitializeSettings();
         bridge.Send("ready");
     }
 
@@ -97,9 +99,10 @@ public sealed partial class MainWindow : Window
     private void Changed()
     {
         var dirty = Dirty;
-        SaveButton.IsEnabled = ready && dirty;
+        SaveButton.IsEnabled = ScheduleDirty;
         Status.Text = dirty ? "有未保存的修改 · 保存后立即更新桌面课表" : "所有修改已保存";
         StatusIcon.Glyph = dirty ? "\uE70F" : "\uE73E";
+        UpdateSettingsState();
         bridge.Send("dirty", dirty);
     }
 
@@ -264,10 +267,10 @@ public sealed partial class MainWindow : Window
             foreach (var offset in new[] { -8, 8, -5, 5, 0 })
             { transform.X = offset; await Task.Delay(40); }
             Root.RenderTransform = null;
-            var result = await Dialog(new ContentDialog { Title = "课表还没有保存", Content = Text("保存修改，还是放弃本次编辑？"),
+            var result = await Dialog(new ContentDialog { Title = "还有未保存的修改", Content = Text("保存课表或设置的修改，还是放弃本次编辑？"),
                 PrimaryButtonText = "保存并关闭", SecondaryButtonText = "放弃修改", CloseButtonText = "继续编辑",
                 DefaultButton = ContentDialogButton.Close });
-            if (result == ContentDialogResult.Secondary || (result == ContentDialogResult.Primary && await Save()))
+            if (result == ContentDialogResult.Secondary || (result == ContentDialogResult.Primary && await SavePendingChanges()))
             { approvedClose = true; Close(); return true; }
             bridge.Send("closeCancelled");
             return false;

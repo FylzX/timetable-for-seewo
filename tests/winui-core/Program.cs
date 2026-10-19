@@ -157,6 +157,38 @@ try
     var safe = malformed.Restore(0, 0, 1280, 720);
     Check(safe.X >= 0 && safe.Y >= 0 && safe.X + safe.Width <= 1280 && safe.Y + safe.Height <= 720, "Invalid placement values are clamped");
     Check(new Timetable.Desktop.Placement().Restore(0, 0, 200, 200).Width <= 200, "Tiny display cannot exceed monitor bounds");
+    var settingsDirectory = Path.Combine(root, "appearance");
+    var settings = new DesktopSettings(settingsDirectory);
+    Check(settings.ReadBackgroundOpacity() == DesktopSettings.DefaultBackgroundOpacity, "Missing appearance settings must retain the original background alpha");
+    settings.SavePlacement(placement);
+    Check(settings.ReadBackgroundOpacity() == DesktopSettings.DefaultBackgroundOpacity, "Old placement-only settings must keep the original appearance");
+    var settingsPath = Path.Combine(settingsDirectory, "user-data", "settings-csharp.json");
+    var settingsNode = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(settingsPath))!.AsObject();
+    settingsNode["FutureSetting"] = "preserve me";
+    File.WriteAllText(settingsPath, settingsNode.ToJsonString());
+    foreach (var opacity in new[] { 0.0, 37.5, 100.0, DesktopSettings.DefaultBackgroundOpacity })
+    {
+        settings.SaveBackgroundOpacity(opacity);
+        var reloadedSettings = new DesktopSettings(settingsDirectory);
+        Check(reloadedSettings.ReadBackgroundOpacity() == opacity, "Opacity must survive restart including endpoints and exact default");
+        var savedPlacement = JsonSerializer.Deserialize<Timetable.Desktop.Placement>(File.ReadAllText(settingsPath));
+        Check(savedPlacement == placement, "Saving opacity must preserve window placement and lock state");
+        settings.SavePlacement(placement with { Locked = false });
+        Check(reloadedSettings.ReadBackgroundOpacity() == opacity, "Moving or locking the widget must preserve saved opacity");
+        Check(System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(settingsPath))!["FutureSetting"]!.GetValue<string>() == "preserve me", "Saving settings must preserve unrelated fields");
+        settings.SavePlacement(placement);
+    }
+    foreach (var invalid in new[] { -1.0, 101.0, double.NaN, double.PositiveInfinity })
+    {
+        var beforeSettings = File.ReadAllText(settingsPath);
+        Reject(() => settings.SaveBackgroundOpacity(invalid), "Invalid opacity must not be saved");
+        Check(File.ReadAllText(settingsPath) == beforeSettings, "Rejected opacity must leave settings untouched");
+    }
+    File.WriteAllText(settingsPath, "{broken");
+    var malformedSettings = File.ReadAllText(settingsPath);
+    try { settings.SaveBackgroundOpacity(50); throw new Exception("Malformed existing settings must not be silently overwritten"); }
+    catch (JsonException) { checks++; }
+    Check(File.ReadAllText(settingsPath) == malformedSettings, "Malformed settings must remain available for recovery");
     var freshDirectory = Path.Combine(root, "fresh");
     var freshStore = new ScheduleFiles(freshDirectory);
     var fresh = freshStore.Read();

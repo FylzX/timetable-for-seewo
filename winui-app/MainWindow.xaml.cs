@@ -26,6 +26,7 @@ public sealed partial class MainWindow : Window
     private readonly nint hwnd;
     private readonly InputNonClientPointerSource pointerSource;
     private readonly string statePath;
+    private readonly DesktopSettings settings;
     private EditorData data = new();
     private Timetable.Editor.MainWindow? editor;
     private TestTimeWindow? testWindow;
@@ -49,6 +50,7 @@ public sealed partial class MainWindow : Window
         this.directory = directory;
         files = new ScheduleFiles(directory);
         statePath = Path.Combine(directory, "user-data", "settings-csharp.json");
+        settings = new DesktopSettings(directory);
         hwnd = WindowNative.GetWindowHandle(this);
         ExtendsContentIntoTitleBar = true;
         SystemBackdrop = new TransparentBackdrop();
@@ -106,7 +108,21 @@ public sealed partial class MainWindow : Window
         StartupLog.Write("Typed and selected times stayed synchronized; invalid input remained invalid");
         await editor!.CheckScrollDeletionAsync();
         StartupLog.Write("Repeated deletion preserved main and exception scroll positions");
+        var savedOpacity = settings.ReadBackgroundOpacity();
+        void CheckBackground(byte expected)
+        {
+            if (Surface.Background is not SolidColorBrush brush || brush.Color.A != expected || Surface.Opacity != 1)
+                throw new InvalidOperationException("Background preview changed the wrong surface or alpha.");
+        }
+        await editor.CheckAppearanceAsync(CheckBackground);
+        await editor.DiscardAppearanceCheckAsync();
+        CheckBackground((byte)Math.Round(savedOpacity / 100 * 255));
+        EditClicked(this, new RoutedEventArgs());
+        await Task.Delay(200);
+        if (Math.Abs(editor!.BackgroundOpacityPreview - savedOpacity) > .000001 || editor.HasUnsavedChanges)
+            throw new InvalidOperationException("Reopening the editor did not restore saved appearance.");
         if (!await editor.RequestCloseAsync()) throw new InvalidOperationException("Diagnostic editor did not close.");
+        StartupLog.Write("Appearance preview, save, exact default, discard and reopen checked");
         approvedClose = true;
         Close();
     }
@@ -159,6 +175,11 @@ public sealed partial class MainWindow : Window
         tabs.SelectedIndex = 1;
         await Task.Delay(500);
         StartupLog.Write("Editor exception dates loaded");
+        tabs.SelectedIndex = 2;
+        await Task.Delay(200);
+        if (editorRoot.FindName("BackgroundOpacitySlider") is not Slider slider || slider.ActualWidth <= 0)
+            throw new InvalidOperationException("Appearance settings did not load.");
+        StartupLog.Write("Editor appearance settings loaded");
         OpenTestTime();
         await Task.Delay(1000);
         if (testWindow?.Content is not FrameworkElement testRoot || testRoot.XamlRoot == null || testRoot.ActualWidth <= 0)
@@ -197,7 +218,13 @@ public sealed partial class MainWindow : Window
         AppWindow.MoveAndResize(new RectInt32(rect.X, rect.Y, rect.Width, rect.Height));
         locked = placement.Locked;
         UpdateLock();
+        try { ApplyBackgroundOpacity(editor?.BackgroundOpacityPreview ?? settings.ReadBackgroundOpacity()); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException)
+        { ApplyBackgroundOpacity(DesktopSettings.DefaultBackgroundOpacity); }
     }
+
+    private void ApplyBackgroundOpacity(double opacity) => Surface.Background = new SolidColorBrush(
+        Color.FromArgb((byte)Math.Round(Math.Clamp(opacity, 0, 100) / 100 * 255), 0x15, 0x15, 0x1E));
 
     private void SavePlacement()
     {
@@ -206,12 +233,9 @@ public sealed partial class MainWindow : Window
         placement = Placement.Capture(rect.X, rect.Y, rect.Width, rect.Height, workArea.X, workArea.Y, workArea.Width, workArea.Height, locked);
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(statePath)!);
-            var temporary = statePath + ".tmp";
-            File.WriteAllText(temporary, JsonSerializer.Serialize(placement) + "\n");
-            File.Move(temporary, statePath, true);
+            settings.SavePlacement(placement);
         }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException)
         { loadError = "窗口位置暂时无法保存：" + error.Message; }
     }
 
@@ -399,6 +423,8 @@ public sealed partial class MainWindow : Window
     {
         if (editor != null) { editor.Activate(); NativeWidget.BringToFront(WindowNative.GetWindowHandle(editor)); return; }
         editor = new Timetable.Editor.MainWindow(directory, false);
+        editor.BackgroundOpacityPreviewChanged += ApplyBackgroundOpacity;
+        ApplyBackgroundOpacity(editor.BackgroundOpacityPreview);
         editor.Saved += LoadData;
         editor.Closed += (_, _) => { editor = null; LoadData(); };
         editor.Activate();

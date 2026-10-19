@@ -32,9 +32,9 @@ try {
             throw ('Startup check changed schedule data: ' + $name)
         }
     }
-    if ($EditorOnly) { Write-Host 'Time input synchronization and repeated deletion scroll preservation checks passed. Schedule files unchanged.' }
-    elseif ($Interactions) { Write-Host 'Resize cursors, time input synchronization and repeated deletion scroll preservation checks passed. Schedule files unchanged.' }
-    else { Write-Host 'Published launcher, main window, both editor tabs and test clock started successfully. Schedule files unchanged.' }
+    if ($EditorOnly) { Write-Host 'Time input, deletion scroll preservation and appearance preview/save/discard checks passed. Schedule files unchanged.' }
+    elseif ($Interactions) { Write-Host 'Resize cursors, time input, deletion scroll preservation and appearance preview/save/discard checks passed. Schedule files unchanged.' }
+    else { Write-Host 'Published launcher, main window, all three editor tabs and test clock started successfully. Schedule files unchanged.' }
 }
 finally {
     $resolved = [IO.Path]::GetFullPath($data)
