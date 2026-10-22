@@ -42,7 +42,10 @@ function Pump([int]$Milliseconds) {
 }
 $child = $null; $overlay = $null; $desktopToggled = $false; $shell = $null
 $projectRoot = Split-Path -Parent $PSScriptRoot
-if (-not $ReleaseDirectory) { $ReleaseDirectory = Join-Path $projectRoot 'release/latest' }
+if (-not $ReleaseDirectory) {
+    $version = [string](([xml](Get-Content -LiteralPath (Join-Path $projectRoot 'winui-app/Timetable.Desktop.csproj') -Raw)).Project.PropertyGroup | Where-Object { $_.Version } | Select-Object -First 1 -ExpandProperty Version)
+    $ReleaseDirectory = Join-Path $projectRoot ('release/' + $version)
+}
 $testRoot = Join-Path $projectRoot 'test-output'
 New-Item -ItemType Directory -Force -Path $testRoot | Out-Null
 $data = Join-Path $testRoot ('desktop-layer-' + [Guid]::NewGuid().ToString('N'))

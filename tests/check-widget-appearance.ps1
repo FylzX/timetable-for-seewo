@@ -2,7 +2,10 @@
 param([string]$ReleaseDirectory = '')
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
-if (-not $ReleaseDirectory) { $ReleaseDirectory = Join-Path $root 'release/latest' }
+if (-not $ReleaseDirectory) {
+    $version = [string](([xml](Get-Content -LiteralPath (Join-Path $root 'winui-app/Timetable.Desktop.csproj') -Raw)).Project.PropertyGroup | Where-Object { $_.Version } | Select-Object -First 1 -ExpandProperty Version)
+    $ReleaseDirectory = Join-Path $root ('release/' + $version)
+}
 $output = Join-Path $root 'test-output/widget-appearance'
 $data = Join-Path $output 'data'
 New-Item -ItemType Directory -Force -Path $data | Out-Null

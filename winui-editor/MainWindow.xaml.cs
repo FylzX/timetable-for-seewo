@@ -73,7 +73,7 @@ public sealed partial class MainWindow : Window
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException or InvalidDataException)
         {
             SaveButton.IsEnabled = false;
-            Tabs.IsEnabled = false;
+            Tabs.IsHitTestVisible = false;
             ShowNotice("无法打开课表", error.Message, InfoBarSeverity.Error);
         }
         InitializeSettings();

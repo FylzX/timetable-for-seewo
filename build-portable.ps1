@@ -1,7 +1,3 @@
-param(
-    [string]$OutputDirectory = (Join-Path $PSScriptRoot 'release/latest')
-)
-
 $ErrorActionPreference = 'Stop'
 $projectRoot = (Resolve-Path -LiteralPath $PSScriptRoot).Path
 $appProject = Join-Path $projectRoot 'winui-app/Timetable.Desktop.csproj'
@@ -10,10 +6,7 @@ if (-not (Test-Path -LiteralPath $appProject)) { throw 'C# main project is missi
 $configuredVersion = [string]($projectFile.Project.PropertyGroup | Where-Object { $_.Version } | Select-Object -First 1 -ExpandProperty Version)
 if ($configuredVersion -notmatch '^\d+\.\d+\.\d+$') { throw 'Project version must use three numeric parts.' }
 $releaseRoot = [IO.Path]::GetFullPath((Join-Path $projectRoot 'release'))
-$output = [IO.Path]::GetFullPath($OutputDirectory)
-if ($output -ne $releaseRoot -and -not $output.StartsWith($releaseRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
-    throw 'Output must be release or one of its subdirectories.'
-}
+$output = [IO.Path]::GetFullPath((Join-Path $releaseRoot $configuredVersion))
 
 # Only replace generated application files. Keep edited schedules and settings.
 New-Item -ItemType Directory -Force -Path $output | Out-Null

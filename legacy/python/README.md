@@ -13,7 +13,7 @@ python app.py
 
 也可以从仓库根目录运行 `view-legacy.cmd`。脚本要求系统中可以直接调用 `python`，并且已安装 PyQt5。
 
-源码运行时，旧版从本目录读取 `timetable.json` 和 `exceptions.json`；缺少或格式无效时会报错，不会从当前 C# 版或内置数据恢复。此处的 JSON 是旧版自己的数据副本，与仓库根目录及 `release/latest/`、版本归档目录中的文件相互独立。
+源码运行时，旧版从本目录读取 `timetable.json` 和 `exceptions.json`；缺少或格式无效时会报错，不会从当前 C# 版或内置数据恢复。此处的 JSON 是旧版自己的数据副本，与仓库根目录及 `release/` 下各版本目录中的文件相互独立。
 
 旧版主窗口和测试时间工具由 Python / PyQt5 提供。点击编辑课表会启动 C# / WinUI 编辑器；要在旧版中使用该功能，需要先在开发电脑构建 `winui-editor/`。直接查看编辑器可在仓库根目录运行：
 

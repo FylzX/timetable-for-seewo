@@ -2,6 +2,8 @@ using Microsoft.UI;
 using Microsoft.UI.Input;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation.Peers;
+using Microsoft.UI.Xaml.Automation.Provider;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
@@ -27,10 +29,14 @@ public sealed partial class MainWindow : Window
     private readonly InputNonClientPointerSource pointerSource;
     private readonly string statePath;
     private readonly DesktopSettings settings;
+    private readonly CancellationTokenSource updateCheckCancellation = new();
     private EditorData data = new();
     private Timetable.Editor.MainWindow? editor;
     private TestTimeWindow? testWindow;
     private UpdateWindow? updateWindow;
+    private MenuFlyout? updateMenuFlyout;
+    private DispatcherTimer? updateCheckTimer;
+    private bool updateCheckRunning, newerVersionAvailable, updateBadgeEnabled = true;
     private int? previewDay;
     private bool locked, dragging, resizing, closing, approvedClose, windowClosed;
     private int resizeEdges;
@@ -75,7 +81,11 @@ public sealed partial class MainWindow : Window
         timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         timer.Tick += (_, _) => Tick();
         timer.Start();
-        Closed += (_, _) => { windowClosed = true; timer.Stop(); native.Dispose(); testWindow?.Close(); updateWindow?.Close(); };
+        Closed += (_, _) =>
+        {
+            windowClosed = true; timer.Stop(); updateCheckTimer?.Stop(); updateCheckCancellation.Cancel(); updateCheckCancellation.Dispose();
+            native.Dispose(); testWindow?.Close(); updateWindow?.Close();
+        };
         Root.RightTapped += (_, args) => { ShowMenu(args.GetPosition(Root)); args.Handled = true; };
         Root.PointerPressed += StartDrag;
         Root.PointerMoved += MoveDrag;
@@ -88,6 +98,8 @@ public sealed partial class MainWindow : Window
             FitRows();
         };
         RowsHost.SizeChanged += (_, _) => FitRows();
+        if (!Environment.GetCommandLineArgs().Any(argument => argument is "--smoke-test" or "--interaction-test" or "--layer-test"))
+            StartAutomaticUpdateChecks();
     }
 
     // Call after Activate: Explorer ownership should be established on the visible HWND.
@@ -102,8 +114,13 @@ public sealed partial class MainWindow : Window
         await Task.Delay(500);
         if (loadError != null) throw new InvalidOperationException(loadError);
         if (Environment.GetCommandLineArgs().Contains("--windowed")) await CheckResizeCursorsAsync();
+        ((IInvokeProvider)new ButtonAutomationPeer(UpdateMenuButton).GetPattern(PatternInterface.Invoke)).Invoke();
+        StartupLog.Write("Update menu button opened without error");
+        updateMenuFlyout?.Hide();
         EditClicked(this, new RoutedEventArgs());
         await Task.Delay(700);
+        await editor!.CheckEditorTabsAsync();
+        StartupLog.Write("Editor tab buttons switched to their matching pages");
         await editor!.CheckTimeEntryAsync();
         StartupLog.Write("Typed and selected times stayed synchronized; invalid input remained invalid");
         await editor!.CheckScrollDeletionAsync();
@@ -114,6 +131,16 @@ public sealed partial class MainWindow : Window
             if (Surface.Background is not SolidColorBrush brush || brush.Color.A != expected || Surface.Opacity != 1)
                 throw new InvalidOperationException("Background preview changed the wrong surface or alpha.");
         }
+        newerVersionAvailable = true;
+        RefreshUpdateBadge();
+        await editor.CheckMenuSettingsAsync(enabled =>
+        {
+            UpdateBadgePreferenceChanged(enabled);
+            if (UpdateBadge.Visibility != (enabled ? Visibility.Visible : Visibility.Collapsed))
+                throw new InvalidOperationException("The update badge did not immediately follow its setting.");
+        });
+        newerVersionAvailable = false;
+        RefreshUpdateBadge();
         await editor.CheckAppearanceAsync(CheckBackground);
         await editor.DiscardAppearanceCheckAsync();
         CheckBackground((byte)Math.Round(savedOpacity / 100 * 255));
@@ -169,13 +196,18 @@ public sealed partial class MainWindow : Window
         var editorRoot = editor?.Content as FrameworkElement;
         if (editorRoot?.XamlRoot == null || editorRoot.ActualWidth <= 0)
             throw new InvalidOperationException("Editor did not load.");
-        if (editorRoot.FindName("Tabs") is not TabView tabs || !tabs.IsEnabled)
+        if (editorRoot.FindName("Tabs") is not Grid tabs || !tabs.IsHitTestVisible)
             throw new InvalidOperationException("Editor could not read the schedule.");
+        if (editor?.SelectedTabIndex != 0 || editorRoot.FindName("ContextMenuOptionsList") is not ListView menuOptions
+            || menuOptions.Items.Count != DesktopSettings.ConfigurableMenuItems.Length)
+            throw new InvalidOperationException("Editor did not open on the main timetable or load all context menu settings.");
         StartupLog.Write("Editor main timetable loaded");
-        tabs.SelectedIndex = 1;
+        await editor.CheckEditorTabsAsync();
+        StartupLog.Write("Editor tab buttons switched to their matching pages");
+        editor.SelectEditorTab(1);
         await Task.Delay(500);
         StartupLog.Write("Editor exception dates loaded");
-        tabs.SelectedIndex = 2;
+        editor.SelectEditorTab(2);
         await Task.Delay(200);
         if (editorRoot.FindName("BackgroundOpacitySlider") is not Slider slider || slider.ActualWidth <= 0)
             throw new InvalidOperationException("Appearance settings did not load.");
@@ -343,12 +375,13 @@ public sealed partial class MainWindow : Window
         { Canvas.SetLeft(element, x); Canvas.SetTop(element, y); element.Width = Math.Max(0, w); element.Height = Math.Max(0, h); }
         Place(DateTitle, pad, 17 * unit, width - pad - 142 * unit, 32 * unit);
         FitText(DateTitle, 24 * unit, DateTitle.Width, DateTitle.Height);
-        Place(GitHubButton, width - 138 * unit, 15 * unit, 36 * unit, 36 * unit);
+        Place(UpdateMenuButton, width - 138 * unit, 15 * unit, 36 * unit, 36 * unit);
         Place(EditButton, width - 96 * unit, 15 * unit, 36 * unit, 36 * unit);
         Place(LockButton, width - 54 * unit, 15 * unit, 36 * unit, 36 * unit);
-        GitHubButton.CornerRadius = EditButton.CornerRadius = LockButton.CornerRadius = new CornerRadius(7 * unit);
-        GitHubButton.BorderThickness = EditButton.BorderThickness = LockButton.BorderThickness = new Thickness(Math.Max(.8, unit));
-        GitHubIcon.Width = GitHubIcon.Height = 20 * unit;
+        Place(UpdateBadge, width - 106 * unit, 12 * unit, 9 * unit, 9 * unit);
+        UpdateMenuButton.CornerRadius = EditButton.CornerRadius = LockButton.CornerRadius = new CornerRadius(7 * unit);
+        UpdateMenuButton.BorderThickness = EditButton.BorderThickness = LockButton.BorderThickness = new Thickness(Math.Max(.8, unit));
+        UpdateMenuIcon.FontSize = 20 * unit;
         EditIcon.FontSize = LockIcon.FontSize = 20 * unit;
         Place(Status, pad, 49 * unit, Math.Min(180 * unit, contentWidth), 18 * unit);
         Status.FontSize = 10 * unit;
@@ -404,7 +437,18 @@ public sealed partial class MainWindow : Window
         text.FontSize = Math.Max(1, size * fit);
     }
 
-    private async void GitHubClicked(object sender, RoutedEventArgs args)
+    private void UpdateMenuClicked(object sender, RoutedEventArgs args)
+    {
+        var menu = updateMenuFlyout = new MenuFlyout();
+        var check = new MenuFlyoutItem { Text = "检查更新", Icon = new FontIcon { Glyph = "\uE895", FontSize = 16 } };
+        check.Click += (_, _) => CheckUpdates();
+        var github = new MenuFlyoutItem { Text = "打开 GitHub", Icon = new FontIcon { Glyph = "\uE774", FontSize = 16 } };
+        github.Click += async (_, _) => await OpenGitHubAsync();
+        menu.Items.Add(check); menu.Items.Add(github);
+        menu.ShowAt(UpdateMenuButton);
+    }
+
+    private async Task OpenGitHubAsync()
     {
         try
         {
@@ -424,6 +468,7 @@ public sealed partial class MainWindow : Window
         if (editor != null) { editor.Activate(); NativeWidget.BringToFront(WindowNative.GetWindowHandle(editor)); return; }
         editor = new Timetable.Editor.MainWindow(directory, false);
         editor.BackgroundOpacityPreviewChanged += ApplyBackgroundOpacity;
+        editor.UpdateBadgePreferenceChanged += UpdateBadgePreferenceChanged;
         ApplyBackgroundOpacity(editor.BackgroundOpacityPreview);
         editor.Saved += LoadData;
         editor.Closed += (_, _) => { editor = null; LoadData(); };
@@ -439,7 +484,7 @@ public sealed partial class MainWindow : Window
         if (locked) Root.SetPointerShape(InputSystemCursorShape.Arrow);
     }
 
-    private void ShowMenu(Point point)
+    private void ShowMenu(Point point, bool expanded = false)
     {
         var menu = new MenuFlyout();
         FontIcon Icon(string glyph) => new() { Glyph = glyph, FontSize = 16 };
@@ -458,28 +503,66 @@ public sealed partial class MainWindow : Window
             Compact(item);
             item.Click += (_, _) => clicked(); menu.Items.Add(item);
         }
-        Add("编辑课表", () => EditClicked(this, new RoutedEventArgs()), "\uE70F");
-        Add("调整时间(测试用)", OpenTestTime);
-        var toggle = new ToggleMenuFlyoutItem { Text = "锁定位置和大小", IsChecked = locked };
-        Compact(toggle);
-        toggle.Click += LockClicked; menu.Items.Add(toggle);
-        var preview = new MenuFlyoutSubItem { Text = "查看课表", Icon = Icon("\uE787") };
-        Compact(preview);
-        var today = new ToggleMenuFlyoutItem { Text = "自动显示今天", IsChecked = previewDay == null };
-        today.Click += (_, _) => { previewDay = null; Render(); }; preview.Items.Add(today);
-        for (var day = 0; day < 7; day++)
+        DesktopPreferences preferences;
+        try { preferences = settings.ReadPreferences(); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException)
         {
-            var value = day;
-            var item = new ToggleMenuFlyoutItem { Text = NativeWidget.DailyNames[day], IsChecked = previewDay == day };
-            item.Click += (_, _) => { previewDay = value; Render(); }; preview.Items.Add(item);
+            StartupLog.Write("Could not read context menu settings: " + error.Message);
+            preferences = new(DesktopSettings.DefaultBackgroundOpacity,
+                DesktopSettings.ConfigurableMenuItems.Select(item => item.Id).ToArray(), [], true);
         }
-        menu.Items.Add(preview);
-        Add("恢复默认位置和大小", ResetPlacement);
-        Add("重新读取课表", LoadData, "\uE72C");
-        Add("检查更新", CheckUpdates, "\uE895");
+        updateBadgeEnabled = preferences.UpdateBadgeEnabled;
+        RefreshUpdateBadge();
+        var hidden = preferences.HiddenContextMenuItems.ToHashSet(StringComparer.Ordinal);
+        foreach (var id in preferences.ContextMenuOrder)
+            if (expanded || !hidden.Contains(id)) AddContextMenuItem(menu, id, Compact, Icon);
+        if (hidden.Count > 0)
+        {
+            var expand = new MenuFlyoutItem { Text = expanded ? "折叠" : "展开" };
+            Compact(expand);
+            expand.Click += (_, _) =>
+            {
+                menu.Hide();
+                DispatcherQueue.TryEnqueue(() => ShowMenu(point, !expanded));
+            };
+            menu.Items.Add(expand);
+        }
         menu.Items.Add(new MenuFlyoutSeparator());
         Add("退出", Close);
         menu.ShowAt(Root, point);
+    }
+
+    private void AddContextMenuItem(MenuFlyout menu, string id, Action<MenuFlyoutItemBase> compact, Func<string, FontIcon> icon)
+    {
+        void Add(string text, Action clicked, string? glyph = null)
+        {
+            var item = new MenuFlyoutItem { Text = text };
+            if (glyph != null) item.Icon = icon(glyph);
+            compact(item); item.Click += (_, _) => clicked(); menu.Items.Add(item);
+        }
+        switch (id)
+        {
+            case "edit": Add("编辑课表", () => EditClicked(this, new RoutedEventArgs()), "\uE713"); break;
+            case "test-time": Add("调整时间(测试用)", OpenTestTime, "\uE787"); break;
+            case "lock":
+                var toggle = new ToggleMenuFlyoutItem { Text = "锁定位置和大小", IsChecked = locked };
+                compact(toggle); toggle.Click += LockClicked; menu.Items.Add(toggle); break;
+            case "view-schedule":
+                var preview = new MenuFlyoutSubItem { Text = "查看课表", Icon = icon("\uE787") };
+                compact(preview);
+                var today = new ToggleMenuFlyoutItem { Text = "自动显示今天", IsChecked = previewDay == null };
+                today.Click += (_, _) => { previewDay = null; Render(); }; preview.Items.Add(today);
+                for (var day = 0; day < 7; day++)
+                {
+                    var value = day;
+                    var item = new ToggleMenuFlyoutItem { Text = NativeWidget.DailyNames[day], IsChecked = previewDay == day };
+                    item.Click += (_, _) => { previewDay = value; Render(); }; preview.Items.Add(item);
+                }
+                menu.Items.Add(preview); break;
+            case "reset-placement": Add("恢复默认位置和大小", ResetPlacement, "\uE777"); break;
+            case "reload-schedule": Add("重新读取课表", LoadData, "\uE72C"); break;
+            case "check-updates": Add("检查更新", CheckUpdates, "\uE895"); break;
+        }
     }
 
     private void ResetPlacement()
@@ -516,6 +599,8 @@ public sealed partial class MainWindow : Window
 
     private void CheckUpdates()
     {
+        newerVersionAvailable = false;
+        RefreshUpdateBadge();
         if (updateWindow != null) { updateWindow.Activate(); return; }
         var args = Environment.GetCommandLineArgs();
         var index = Array.IndexOf(args, "--update-test-url");
@@ -527,6 +612,47 @@ public sealed partial class MainWindow : Window
         }, () => { approvedClose = true; Close(); Application.Current.Exit(); });
         updateWindow.Closed += (_, _) => updateWindow = null;
         updateWindow.Activate();
+    }
+
+    private void StartAutomaticUpdateChecks()
+    {
+        try { updateBadgeEnabled = settings.ReadPreferences().UpdateBadgeEnabled; }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException)
+        { StartupLog.Write("Could not load update badge preference: " + error.Message); }
+        RefreshUpdateBadge();
+        updateCheckTimer = new DispatcherTimer { Interval = UpdateBadgePolicy.CheckInterval };
+        updateCheckTimer.Tick += async (_, _) => await CheckUpdateAvailabilityAsync();
+        updateCheckTimer.Start();
+        _ = CheckUpdateAvailabilityAsync();
+    }
+
+    private async Task CheckUpdateAvailabilityAsync()
+    {
+        if (updateCheckRunning || windowClosed || updateCheckCancellation.IsCancellationRequested) return;
+        updateCheckRunning = true;
+        try
+        {
+            using var client = new UpdateClient();
+            var result = await client.CheckAsync(UpdateClient.CurrentVersion, updateCheckCancellation.Token);
+            newerVersionAvailable = result.Update != null;
+            RefreshUpdateBadge();
+            StartupLog.Write(newerVersionAvailable ? "Automatic update check found a newer release" : "Automatic update check found no newer release");
+        }
+        catch (OperationCanceledException) when (updateCheckCancellation.IsCancellationRequested) { }
+        catch (Exception error)
+        {
+            StartupLog.Write("Automatic update check failed: " + error.Message);
+        }
+        finally { updateCheckRunning = false; }
+    }
+
+    private void RefreshUpdateBadge() => UpdateBadge.Visibility = UpdateBadgePolicy.ShouldShow(newerVersionAvailable, updateBadgeEnabled)
+        ? Visibility.Visible : Visibility.Collapsed;
+
+    private void UpdateBadgePreferenceChanged(bool enabled)
+    {
+        updateBadgeEnabled = enabled;
+        RefreshUpdateBadge();
     }
 
     internal void WriteUpdateHealth(string path)

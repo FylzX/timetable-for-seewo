@@ -1,10 +1,10 @@
 # 发布更新
 
-版本号由维护者在 `winui-app/Timetable.Desktop.csproj` 的 `Version` 中手动管理。构建脚本不会按版本号选择便携目录。
+版本号由维护者在 `winui-app/Timetable.Desktop.csproj` 的 `Version` 中手动管理，构建脚本据此选择对应的便携目录和更新附件目录。
 
-运行 `build-portable.ps1` 后，完整便携程序目录固定写入 `release/latest/`，更新 ZIP 与 SHA-256 文件写入 `updatepack/<项目版本>/`。构建不会修改 `release/` 下其他版本目录。
+运行 `build-portable.ps1` 后，完整便携程序目录写入 `release/<项目版本>/`，更新 ZIP 与 SHA-256 文件写入 `updatepack/<项目版本>/`。构建不会修改 `release/` 下其他版本目录。
 
-`release/latest/` 是每次构建更新的工作副本，不是版本归档。发布便携版时由维护者手动将选定的完整便携内容归档到 `release/<版本>/` 并制作 ZIP；本项目构建脚本不做这一步。由于构建会保留 `latest` 中现有 JSON 和 `user-data/`，打包前由维护者确认课表数据并排除本机设置、日志、旧 ZIP 和测试文件。自动更新附件始终放在独立的 `updatepack/<版本>/`。
+`release/<版本>/` 同时是该版本的完整便携目录和构建输出位置。构建会保留该目录中已有的 JSON 和 `user-data/`，更新程序文件并生成更新附件；打包便携 ZIP 前由维护者确认课表数据，并排除本机设置、日志、旧 ZIP 和测试文件。自动更新附件始终放在独立的 `updatepack/<版本>/`。
 
 在 GitHub 创建正式 Release，标签与项目版本对应，例如 `v1.3.1`，上传维护者制作的便携版 ZIP 和构建脚本生成的这两个更新附件：
 

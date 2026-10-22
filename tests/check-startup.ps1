@@ -1,7 +1,8 @@
 param([string]$ReleaseDirectory = '', [switch]$Interactions, [switch]$EditorOnly)
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$releaseRoot = if ($ReleaseDirectory) { [IO.Path]::GetFullPath($ReleaseDirectory) } else { Join-Path $projectRoot 'release/latest' }
+$releaseVersion = [string](([xml](Get-Content -LiteralPath (Join-Path $projectRoot 'winui-app/Timetable.Desktop.csproj') -Raw)).Project.PropertyGroup | Where-Object { $_.Version } | Select-Object -First 1 -ExpandProperty Version)
+$releaseRoot = if ($ReleaseDirectory) { [IO.Path]::GetFullPath($ReleaseDirectory) } else { Join-Path $projectRoot ('release/' + $releaseVersion) }
 $executable = Join-Path $releaseRoot 'DesktopTimetable.exe'
 if (-not (Test-Path -LiteralPath $executable)) { throw 'Run build-portable.ps1 first.' }
 $testRoot = Join-Path $projectRoot 'test-output'

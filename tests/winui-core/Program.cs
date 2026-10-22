@@ -159,6 +159,13 @@ try
     Check(new Timetable.Desktop.Placement().Restore(0, 0, 200, 200).Width <= 200, "Tiny display cannot exceed monitor bounds");
     var settingsDirectory = Path.Combine(root, "appearance");
     var settings = new DesktopSettings(settingsDirectory);
+    var defaultPreferences = settings.ReadPreferences();
+    var defaultOrder = DesktopSettings.ConfigurableMenuItems.Select(item => item.Id).ToArray();
+    Check(defaultPreferences.ContextMenuOrder.SequenceEqual(defaultOrder), "First-run context menu order must match the current menu");
+    Check(defaultPreferences.HiddenContextMenuItems.Length == 0 && defaultPreferences.UpdateBadgeEnabled, "All menu options and update badges must be enabled by default");
+    Check(UpdateBadgePolicy.CheckInterval == TimeSpan.FromHours(3), "Automatic update checks must run every three hours");
+    Check(!UpdateBadgePolicy.ShouldShow(true, false) && UpdateBadgePolicy.ShouldShow(true, true)
+        && !UpdateBadgePolicy.ShouldShow(false, true), "Update badge must follow availability and the user's preference");
     Check(settings.ReadBackgroundOpacity() == DesktopSettings.DefaultBackgroundOpacity, "Missing appearance settings must retain the original background alpha");
     settings.SavePlacement(placement);
     Check(settings.ReadBackgroundOpacity() == DesktopSettings.DefaultBackgroundOpacity, "Old placement-only settings must keep the original appearance");
@@ -184,6 +191,23 @@ try
         Reject(() => settings.SaveBackgroundOpacity(invalid), "Invalid opacity must not be saved");
         Check(File.ReadAllText(settingsPath) == beforeSettings, "Rejected opacity must leave settings untouched");
     }
+    var customOrder = defaultOrder.Reverse().ToArray();
+    var customPreferences = new DesktopPreferences(63.5, customOrder, ["edit", "reload-schedule"], false);
+    settings.SavePreferences(customPreferences);
+    var savedPreferences = settings.ReadPreferences();
+    Check(savedPreferences.BackgroundOpacity == 63.5 && savedPreferences.ContextMenuOrder.SequenceEqual(customOrder)
+        && savedPreferences.HiddenContextMenuItems.Order().SequenceEqual(new[] { "edit", "reload-schedule" })
+        && !savedPreferences.UpdateBadgeEnabled, "Appearance, menu order, collapsed options and badge preference must persist together");
+    Check(DesktopSettings.VisibleContextMenuItems(savedPreferences, false).SequenceEqual(customOrder.Where(id => id is not "edit" and not "reload-schedule")),
+        "Collapsed context menu must omit unchecked options while preserving configured order");
+    Check(DesktopSettings.VisibleContextMenuItems(savedPreferences, true).SequenceEqual(customOrder),
+        "Expanded context menu must restore every option in configured order");
+    Check(!savedPreferences.ContextMenuOrder.Contains(DesktopSettings.ExitMenuItem), "Exit must remain pinned outside reorderable menu entries");
+    settings.SavePlacement(placement with { Locked = false });
+    var afterPlacementSave = settings.ReadPreferences();
+    Check(afterPlacementSave.ContextMenuOrder.SequenceEqual(customOrder) && afterPlacementSave.HiddenContextMenuItems.Order().SequenceEqual(new[] { "edit", "reload-schedule" })
+        && !afterPlacementSave.UpdateBadgeEnabled && afterPlacementSave.BackgroundOpacity == 63.5,
+        "Saving placement must preserve every appearance and menu preference");
     File.WriteAllText(settingsPath, "{broken");
     var malformedSettings = File.ReadAllText(settingsPath);
     try { settings.SaveBackgroundOpacity(50); throw new Exception("Malformed existing settings must not be silently overwritten"); }

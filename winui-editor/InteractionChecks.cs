@@ -10,10 +10,75 @@ namespace Timetable.Editor;
 
 public sealed partial class MainWindow
 {
+    internal async Task CheckEditorTabsAsync()
+    {
+        await Task.Delay(80);
+        foreach (var button in new[] { WeeklyTabButton, ExceptionTabButton, SettingsTabButton })
+        {
+            if (button.ActualWidth < 159 || button.ActualHeight < 47)
+                throw new InvalidOperationException($"Editor tab hit target does not fill its 160x48 cell: {button.ActualWidth}x{button.ActualHeight}.");
+        }
+
+        foreach (var (button, index) in new[]
+        {
+            (WeeklyTabButton, 0), (ExceptionTabButton, 1), (SettingsTabButton, 2), (WeeklyTabButton, 0)
+        })
+        {
+            ((IInvokeProvider)new ButtonAutomationPeer(button).GetPattern(PatternInterface.Invoke)).Invoke();
+            await Task.Delay(80);
+            var visiblePage = index switch
+            {
+                0 => WeeklyTabPage.Visibility == Visibility.Visible,
+                1 => ExceptionTabPage.Visibility == Visibility.Visible,
+                _ => SettingsTabPage.Visibility == Visibility.Visible
+            };
+            if (selectedTabIndex != index || !visiblePage)
+                throw new InvalidOperationException("Editor tab button did not select its matching page.");
+        }
+    }
+
+    internal async Task CheckMenuSettingsAsync(Action<bool> checkBadgePreference)
+    {
+        var original = settings.ReadPreferences();
+        SelectEditorTab(2);
+        await Task.Delay(200);
+        if (ContextMenuOptionsList.Items.Count != DesktopSettings.ConfigurableMenuItems.Length)
+            throw new InvalidOperationException("Context menu settings did not show all configurable items.");
+
+        contextMenuOptions.Move(0, contextMenuOptions.Count - 1);
+        var edit = contextMenuOptions.Single(item => item.Id == "edit");
+        edit.IsEnabled = false;
+        Changed();
+        if (!SettingsDirty || !SaveAppearance()) throw new InvalidOperationException("Reordering or hiding a menu option was not saveable.");
+        var saved = settings.ReadPreferences();
+        if (saved.ContextMenuOrder[0] != original.ContextMenuOrder[1]
+            || !saved.HiddenContextMenuItems.Contains("edit")
+            || DesktopSettings.VisibleContextMenuItems(saved, false).Contains("edit")
+            || !DesktopSettings.VisibleContextMenuItems(saved, true).Contains("edit"))
+            throw new InvalidOperationException("Menu order and collapsed/expanded option visibility did not persist.");
+
+        UpdateBadgeCheckBox.IsChecked = false;
+        checkBadgePreference(false);
+        if (!SaveAppearance() || settings.ReadPreferences().UpdateBadgeEnabled)
+            throw new InvalidOperationException("Disabling the update badge was not saved.");
+
+        contextMenuOptions.Clear();
+        foreach (var id in original.ContextMenuOrder)
+        {
+            var definition = DesktopSettings.ConfigurableMenuItems.Single(item => item.Id == id);
+            contextMenuOptions.Add(new MenuOption(id, definition.Label, !original.HiddenContextMenuItems.Contains(id)));
+        }
+        UpdateBadgeCheckBox.IsChecked = original.UpdateBadgeEnabled;
+        updateBadgeEnabled = original.UpdateBadgeEnabled;
+        Changed();
+        if (!SaveAppearance()) throw new InvalidOperationException("Could not restore the context menu test settings.");
+        checkBadgePreference(original.UpdateBadgeEnabled);
+    }
+
     internal async Task CheckAppearanceAsync(Action<byte> checkBackground)
     {
         var original = savedBackgroundOpacity;
-        Tabs.SelectedIndex = 2;
+        SelectEditorTab(2);
         await Task.Delay(200);
         if (SaveButton.Visibility != Visibility.Collapsed || BackgroundOpacitySlider.ActualWidth <= 0)
             throw new InvalidOperationException("Appearance settings tab did not render.");
@@ -40,9 +105,14 @@ public sealed partial class MainWindow
     internal async Task DiscardAppearanceCheckAsync()
     {
         var closingTask = RequestCloseAsync();
-        await Task.Delay(400);
-        var dialog = VisualTreeHelper.GetOpenPopupsForXamlRoot(Root.XamlRoot)
-            .SelectMany(popup => Descendants(popup.Child).Prepend(popup.Child)).OfType<ContentDialog>().Single();
+        ContentDialog? dialog = null;
+        for (var attempt = 0; attempt < 30 && dialog is null; attempt++)
+        {
+            dialog = VisualTreeHelper.GetOpenPopupsForXamlRoot(Root.XamlRoot)
+                .SelectMany(popup => Descendants(popup.Child).Prepend(popup.Child)).OfType<ContentDialog>().FirstOrDefault();
+            if (dialog is null) await Task.Delay(100);
+        }
+        if (dialog is null) throw new InvalidOperationException("Discard confirmation did not appear for pending settings.");
         var discard = Descendants(dialog).OfType<Button>().Single(button => button.Content is string text && text == "放弃修改");
         ((IInvokeProvider)new ButtonAutomationPeer(discard).GetPattern(PatternInterface.Invoke)).Invoke();
         if (!await closingTask) throw new InvalidOperationException("Discarding settings did not close the editor.");
@@ -102,7 +172,7 @@ public sealed partial class MainWindow
             RenderWeek(); RenderExceptions();
             foreach (var exceptions in new[] { false, true })
             {
-                Tabs.SelectedIndex = exceptions ? 1 : 0;
+                SelectEditorTab(exceptions ? 1 : 0);
                 await Task.Delay(500);
                 var scroll = (exceptions ? exceptionScroll : weeklyScroll)!;
                 scroll.UpdateLayout();
